@@ -212,7 +212,7 @@
 
 	// try to move a character, stopping if it hits an obstacle, and returns the remaining distance
 	Game_Character.prototype.srpgTryMove = function(dir, distance, type) {
-		if (dir < 1 || dir == 5 || dir > 9) return;
+		if (dir < 1 || dir == 5 || dir > 9) return 0;
 		type = type || 'normal';
 
 		// set the starting position
