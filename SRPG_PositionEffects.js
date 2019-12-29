@@ -28,7 +28,7 @@
  *
  * New skill/item notetag:
  * <anyTarget> allows a skill to target players and enemies alike
- * Useful for purely positioning skills, but may confuse AI units
+ * Useful for positioning skills or AoEs, but may confuse AI units
  *
  *
  * Information script calls:
@@ -42,10 +42,14 @@
  * Movement script calls:
  * a.push(b, distance, type) pushes b away from a
  * a.pull(b, distance, type) pulls b toward a
+ * a.pushRight(b, distance, type) moves b right (clockwise) around a
+ * a.pushLeft(b, distance, type) moves b left (counter-clockwise) around a
  * a.forward(distance, type) moves a in the direction they're facing
  * a.back(distance, type) moves a in the opposite direction they're facing
  * a.pushAoE(b, distance, type) pushes b away from the center of the AoE (requires AreaAttack.js)
  * a.pullAoE(b, distance, type) pulls b toward the center of the AoE (requires AreaAttack.js)
+ * a.pushRightAoE(b, distance, type) moves b clockwise around the center of the AoE
+ * a.pushLeftAoE(b, distance, type) moves b counter-clockwise around the center of the AoE
  * a.approach(b, type) moves a to the open space nearest to b (best for linear-only effects)
  *
  * Type can be set to "normal", "jump", or "instant" and defaults to "normal" if not specified
@@ -208,7 +212,9 @@
 
 	// try to move a character, stopping if it hits an obstacle, and returns the remaining distance
 	Game_Character.prototype.srpgTryMove = function(dir, distance, type) {
+		if (dir < 1 || dir == 5 || dir > 9) return;
 		type = type || 'normal';
+
 		// set the starting position
 		var x = this.posX();
 		var y = this.posY();
@@ -394,6 +400,30 @@
 		if (userEvent === targetEvent) return userEvent.forward(distance, type);
 		return targetEvent.srpgTryMove(targetEvent.dirTo(userEvent.posX(), userEvent.posY()), distance, type);
 	};
+	// move target clockwise
+	Game_BattlerBase.prototype.pushRight = function(target, distance, type) {
+		if (target.srpgImmovable()) return 0;
+		var userEvent = this.event();
+		var targetEvent = target.event();
+		if (!userEvent || !targetEvent) return 0;
+		if (userEvent === targetEvent) return userEvent.back(distance, type);
+
+		var dir = targetEvent.dirTo(userEvent.posX(), userEvent.posY());
+		var clockwise = [0, 3, 6, 9, 2, 5, 8, 1, 4, 7];
+		return targetEvent.srpgTryMove(clockwise[dir], distance, type);
+	};
+	// move target counter-clockwise
+	Game_BattlerBase.prototype.pushLeft = function(target, distance, type) {
+		if (target.srpgImmovable()) return 0;
+		var userEvent = this.event();
+		var targetEvent = target.event();
+		if (!userEvent || !targetEvent) return 0;
+		if (userEvent === targetEvent) return userEvent.back(distance, type);
+
+		var dir = targetEvent.dirTo(userEvent.posX(), userEvent.posY());
+		var counterClockwise = [0, 7, 4, 1, 8, 5, 2, 9, 6, 3];
+		return targetEvent.srpgTryMove(counterClockwise[dir], distance, type);
+	};
 
 	// teleport next to the target
 	Game_BattlerBase.prototype.approach = function(target, type) {
@@ -424,6 +454,7 @@
 		if (target.srpgImmovable()) return 0;
 		var targetEvent = target.event();
 		if (!targetEvent) return 0;
+		if (!$gameTemp.areaX || !$gameTemp.areaY) return 0;
 		return targetEvent.srpgTryMove(10-targetEvent.dirTo($gameTemp.areaX(), $gameTemp.areaY()), distance, type);
 	};
 	// pull target in (to an AoE)
@@ -431,12 +462,36 @@
 		if (target.srpgImmovable()) return 0;
 		var targetEvent = target.event();
 		if (!targetEvent) return 0;
+		if (!$gameTemp.areaX || !$gameTemp.areaY) return 0;
 		return targetEvent.srpgTryMove(targetEvent.dirTo($gameTemp.areaX(), $gameTemp.areaY()), distance, type);
+	};
+	// move target clockwise (around an AoE)
+	Game_BattlerBase.prototype.pushRightAoE = function(target, distance, type) {
+		if (target.srpgImmovable()) return 0;
+		var targetEvent = target.event();
+		if (!targetEvent) return 0;
+		if (!$gameTemp.areaX || !$gameTemp.areaY) return 0;
+
+		var dir = targetEvent.dirTo($gameTemp.areaX(), $gameTemp.areaY());
+		var clockwise = [0, 3, 6, 9, 2, 5, 8, 1, 4, 7];
+		return targetEvent.srpgTryMove(clockwise[dir], distance, type);
+	};
+	// move target counter-clockwise (around an AoE)
+	Game_BattlerBase.prototype.pushLeftAoE = function(target, distance, type) {
+		if (target.srpgImmovable()) return 0;
+		var targetEvent = target.event();
+		if (!targetEvent) return 0;
+		if (!$gameTemp.areaX || !$gameTemp.areaY) return 0;
+
+		var dir = targetEvent.dirTo($gameTemp.areaX(), $gameTemp.areaY());
+		var counterClockwise = [0, 7, 4, 1, 8, 5, 2, 9, 6, 3];
+		return targetEvent.srpgTryMove(counterClockwise[dir], distance, type);
 	};
 	// teleport to an empty cell (at the center of an AoE)
 	Game_BattlerBase.prototype.teleportAoE = function(type) {
 		var userEvent = this.event();
 		if (!userEvent) return false;
+		if (!$gameTemp.areaX || !$gameTemp.areaY) return false;
 		return userEvent.srpgTeleport($gameTemp.areaX(), $gameTemp.areaY(), type);
 	};
 
