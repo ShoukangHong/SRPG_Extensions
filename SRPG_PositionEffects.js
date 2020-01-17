@@ -12,7 +12,7 @@
  * Script calls that can be put in damage formulas or lunatic notetags
  * to make skills that push, pull, move, and teleport.
  *
- * In addition, skills with a scope of "none" can target unoccupied passable
+ * In addition, skills with the <cellTarget> tag can target unoccupied passable
  * cells for teleportation, or, with some creative events and other plugins,
  * things like summoning skills, terrain modifications, etc.
  *
@@ -27,6 +27,9 @@
  * (immovable applies for unit b, but is ignored for unit a)
  *
  * New skill/item notetag:
+ * <cellTarget> allows a skill to target an unoccupied cell on the map,
+ * even if it normally wouldn't
+ *
  * <anyTarget> allows a skill to target players and enemies alike
  * Useful for positioning skills or AoEs, but may confuse AI units
  *
@@ -36,8 +39,10 @@
  * a.srpgImmovable() returns true if the battler is immovable
  *
  * Utility script calls:
- * a.focus() moves the cursor (and camera) to a
+ * a.focus() centers the cursor (and camera) on a
  * a.face(b) turns a to face b
+ * a.faceCursor() turns a to face the current cursor position
+ * a.faceAoE() turns a to face the center of the current AoE
  *
  * Movement script calls:
  * a.push(b, distance, type) pushes b away from a
@@ -57,7 +62,7 @@
  *
  * Direct positioning script calls:
  * a.swap(b) switches the positions of a and b
- * a.teleport(type) moves a to the cursor position, provided the cell is empty (best used with a scope of "none")
+ * a.teleport(type) moves a to the cursor position, provided the cell is empty (best used with <cellTarget>)
  * a.teleportAoE(type) moves a to the center of the AoE, provided the cell is empty (requires AreaAttack.js)
  
  * Type can be "jump" or "instant" and defaults to "instant" if not specified
@@ -168,7 +173,8 @@
 		var tag = action.item().meta.srpgTargetTag;
 		if (tag === undefined || tag < 0) tag = user.srpgThroughTag();
 
-		if (action.isForOpponent() || action.isForFriend()) return false;
+		//if (action.isForOpponent() || action.isForFriend()) return false;
+		if (!action.item().meta.cellTarget) return false;
 		if ($gameMap.terrainTag(x, y) > 0 && $gameMap.terrainTag(x, y) > tag) return false;
 		return ($gameSystem.positionInRange(x, y) && $gameMap.positionIsOpen(x, y));
 	}
@@ -353,19 +359,35 @@
 // Common movement effects
 //====================================================================
 
-	// center the cursor / camera
+	// center the camera
 	Game_BattlerBase.prototype.focus = function() {
 		var event = this.event();
-		if (!event) return;
+		if (!event || $gameTemp.isPrediction()) return;
 		$gameTemp.setAutoMoveDestinationValid(true);
 		$gameTemp.setAutoMoveDestination(event.posX(), event.posY());
 	};
-	// face the target entity
+	// face a specified unit
 	Game_BattlerBase.prototype.face = function(target) {
 		var userEvent = this.event();
 		var targetEvent = target.event();
 		if (!userEvent || !targetEvent || userEvent === targetEvent) return 5;
 		var dir = userEvent.dirTo(targetEvent.posX(), targetEvent.posY());
+		if (!$gameTemp.isPrediction()) userEvent.setDirection(dir);
+		return dir;
+	};
+	// face the cursor
+	Game_BattlerBase.prototype.faceCursor = function() {
+		var userEvent = this.event();
+		if (!userEvent || userEvent.pos($gamePlayer.posX(), $gamePlayer.posY())) return 5;
+		var dir = userEvent.dirTo($gamePlayer.posX(), $gamePlayer.posY());
+		if (!$gameTemp.isPrediction()) userEvent.setDirection(dir);
+		return dir;
+	};
+	// face the center of the AoE
+	Game_BattlerBase.prototype.faceAoE = function() {
+		var userEvent = this.event();
+		if (!userEvent || userEvent.pos($gameTemp.areaX(), $gameTemp.areaY())) return 5;
+		var dir = userEvent.dirTo($gameTemp.areaX(), $gameTemp.areaY());
 		if (!$gameTemp.isPrediction()) userEvent.setDirection(dir);
 		return dir;
 	};
