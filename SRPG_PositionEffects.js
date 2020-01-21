@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================
@@ -152,6 +152,17 @@
 		var dir = 5;
 		var dx = this.posX() - x;
 		var dy = this.posY() - y;
+
+		// account for looping maps
+		if ($gameMap.isLoopHorizontal()) {
+			if (dx > $gameMap.width() / 2) dx -= $gameMap.width();
+			if (dx < -$gameMap.width() / 2) dx += $gameMap.width();
+		}
+		if ($gameMap.isLoopVertical()) {
+			if (dy > $gameMap.height() / 2) dy -= $gameMap.height();
+			if (dy < -$gameMap.height() / 2) dy += $gameMap.height();
+		}
+
 		if (Math.abs(dx) > Math.abs(dy)) {
 			dir = dx > 0 ? 4 : 6;
 		} else if (dy !== 0) {
@@ -173,7 +184,6 @@
 		var tag = action.item().meta.srpgTargetTag;
 		if (tag === undefined || tag < 0) tag = user.srpgThroughTag();
 
-		//if (action.isForOpponent() || action.isForFriend()) return false;
 		if (!action.item().meta.cellTarget) return false;
 		if ($gameMap.terrainTag(x, y) > 0 && $gameMap.terrainTag(x, y) > tag) return false;
 		return ($gameSystem.positionInRange(x, y) && $gameMap.positionIsOpen(x, y));
@@ -319,13 +329,13 @@
 
 	// check if a battler is immune to movement from states
 	Game_BattlerBase.prototype.srpgImmovable = function() {
-		var Immovable = false;
+		var immovable = false;
 		this.states().forEach(function(state) {
 			if (state.meta.srpgImmovable) {
-				Immovable = true;
+				immovable = true;
 			}
 		});
-		return Immovable;
+		return immovable;
 	};
 
 	// check if an actor is immune to movement from class or equipment
@@ -333,14 +343,14 @@
 		if (this.actor().meta.srpgImmovable) return true;
 		if (this.currentClass().meta.srpgImmovable) return true;
 
-		var Immovable = false;
+		var immovable = false;
 		this.equips().forEach(function(item) {
 			if (item && item.meta.srpgImmovable) {
-				Immovable = true;
+				immovable = true;
 			}
 		});
 
-		return Immovable || Game_BattlerBase.prototype.srpgImmovable.call(this);
+		return immovable || Game_BattlerBase.prototype.srpgImmovable.call(this);
 	};
 
 	// check if an enemy is immune to movement innately or from weapon
@@ -531,6 +541,16 @@
 	Game_Action.prototype.isForFriend = function() {
 		if (this.item() && this.item().meta.anyTarget) return true;
 		return _isForFriend.call(this);
+	};
+
+	var _makeTargets = Game_Action.prototype.makeTargets;
+	Game_Action.prototype.makeTargets = function() {
+		var targets = _makeTargets.call(this);
+		// make sure it finds friendlies if it couldn't find an enemy
+		if ($gameSystem.isSRPGMode() && this.isForFriend() && targets[0] == null) {
+			return this.repeatTargets(this.targetsForFriends());
+		}
+		return targets;
 	};
 
 })();
