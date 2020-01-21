@@ -109,7 +109,7 @@
 
 (function(){
 
-	var parameters = PluginManager.parameters('SRPG_MapAttack_Motions');
+	var parameters = PluginManager.parameters('SRPG_MapBattle_Motions');
 	var _default = {};
 	_default.selected = parameters['Selected'];
 	_default.attack = parameters['Attack'];
