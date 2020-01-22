@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================
@@ -42,8 +42,8 @@
 	Game_BattlerBase.prototype.event = function() {
 		var currentBattler = this;
 		var eventId = 0;
-		$gameSystem._EventToUnit.forEach(function (battleAry, index) {
-			if (battleAry[1] === currentBattler) eventId = index;
+		$gameSystem._EventToUnit.forEach(function (battleArray, index) {
+			if (battleArray && battleArray[1] === currentBattler) eventId = index;
 		});
 		return $gameMap.event(eventId);
 	};
