@@ -88,6 +88,13 @@
 // Stop position effects from happening during prediction
 //====================================================================
 
+	// initialize the prediction flag
+	var _Game_Temp_initialize = Game_Temp.prototype.initialize;
+	Game_Temp.prototype.initialize = function() {
+		_Game_Temp_initialize.call(this);
+		this._isPrediction = false;
+	}
+
 	// set the prediction flag
 	Game_Temp.prototype.setPrediction = function(value) {
 		this._isPrediction = !!value;
@@ -115,8 +122,8 @@
 	Game_BattlerBase.prototype.event = function() {
 		var currentBattler = this;
 		var eventId = 0;
-		$gameSystem._EventToUnit.forEach(function (battleAry, index) {
-			if (battleAry[1] === currentBattler) eventId = index;
+		$gameSystem._EventToUnit.forEach(function (battleArray, index) {
+			if (battleArray && battleArray[1] === currentBattler) eventId = index;
 		});
 		return $gameMap.event(eventId);
 	};
