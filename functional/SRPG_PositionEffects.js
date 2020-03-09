@@ -51,8 +51,8 @@
  * a.pushLeft(b, distance, type) moves b left (counter-clockwise) around a
  * a.forward(distance, type) moves a in the direction they're facing
  * a.back(distance, type) moves a in the opposite direction they're facing
- * a.pushAoE(b, distance, type) pushes b away from the center of the AoE (requires AreaAttack.js)
- * a.pullAoE(b, distance, type) pulls b toward the center of the AoE (requires AreaAttack.js)
+ * a.pushAoE(b, distance, type) pushes b away from the center of the AoE (requires SRPG_AoE.js)
+ * a.pullAoE(b, distance, type) pulls b toward the center of the AoE (requires SRPG_AoE.js)
  * a.pushRightAoE(b, distance, type) moves b clockwise around the center of the AoE
  * a.pushLeftAoE(b, distance, type) moves b counter-clockwise around the center of the AoE
  * a.approach(b, type) moves a to the open space nearest to b (best for linear-only effects)
@@ -63,7 +63,7 @@
  * Direct positioning script calls:
  * a.swap(b) switches the positions of a and b
  * a.teleport(type) moves a to the cursor position, provided the cell is empty (best used with <cellTarget>)
- * a.teleportAoE(type) moves a to the center of the AoE, provided the cell is empty (requires AreaAttack.js)
+ * a.teleportAoE(type) moves a to the center of the AoE, provided the cell is empty (requires SRPG_AoE.js)
  
  * Type can be "jump" or "instant" and defaults to "instant" if not specified
  * The functions return false if the swap or teleport can't complete (immobile target, invalid destination)
