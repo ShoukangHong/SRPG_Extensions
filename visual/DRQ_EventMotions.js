@@ -14,7 +14,7 @@
  *
  * @param Compatability Mode
  * @type boolean
- * @desc Enable if another plugin changes the looping behavior
+ * @desc Enable if another plugin changes how character animations loop
  * @on YES
  * @off NO
  * @default false
@@ -107,44 +107,44 @@
 //====================================================================
 
 	// initialize the motion property
-	_characterInitMembers = Game_Character.prototype.initMembers;
-	Game_Character.prototype.initMembers = function() {
+	_characterInitMembers = Game_CharacterBase.prototype.initMembers;
+	Game_CharacterBase.prototype.initMembers = function() {
 		_characterInitMembers.call(this);
 		this._motion = null;
 	};
 
 	// get the data object for the current motion
-	Game_Character.prototype.motion = function() {
+	Game_CharacterBase.prototype.motion = function() {
 		return this._motion;
 	};
 
 	// check if there's a looping motion playing
-	Game_Character.prototype.hasLoopingMotion = function() {
+	Game_CharacterBase.prototype.hasLoopingMotion = function() {
 		var motion = this.motion();
 		return !!(motion && (motion.loop || motion.hold));
 	};
 
 	// check if there's a non-looping motion playing
-	Game_Character.prototype.hasSingleMotion = function() {
+	Game_CharacterBase.prototype.hasSingleMotion = function() {
 		var motion = this.motion();
 		return !!(motion && !motion.loop && !motion.hold);
 	};
 
 	// remove any active motion
-	Game_Character.prototype.clearMotion = function() {
+	Game_CharacterBase.prototype.clearMotion = function() {
 		this._motion = null;
 		this._animationCount = 0;
 		this.resetPattern();
 	};
 
 	// run a preset motion
-	Game_Character.prototype.playMotion = function(motion, wait) {
+	Game_CharacterBase.prototype.playMotion = function(motion, wait) {
 		if (!motion) return;
 		this.playCustomMotion(Sprite_Character.MOTIONS[motion.toUpperCase()], wait);
 	};
 
 	// run a motion created on the fly
-	Game_Character.prototype.playCustomMotion = function(motionData, wait) {
+	Game_CharacterBase.prototype.playCustomMotion = function(motionData, wait) {
 		this._motion = motionData;
 		if (this._motion) {
 			motionData.loop ? this.resetPattern() : this._pattern = 0;
@@ -157,7 +157,7 @@
 	};
 
 	// wait for the current motion to finish (non-looping only)
-	Game_Character.prototype.waitForMotion = function() {
+	Game_CharacterBase.prototype.waitForMotion = function() {
 		var motion = this.motion();
 		if (!motion || motion.loop) return;
 		var frameWait = this.animationWait();
@@ -172,8 +172,8 @@
 //====================================================================
 
 	// when a motion is active, you always animate
-	var _hasStepAnime = Game_Character.prototype.hasStepAnime;
-	Game_Character.prototype.hasStepAnime = function() {
+	var _hasStepAnime = Game_CharacterBase.prototype.hasStepAnime;
+	Game_CharacterBase.prototype.hasStepAnime = function() {
 		if (this.motion()) {
 			return true;
 		} else {
@@ -182,8 +182,8 @@
 	};
 
 	// override the character index for motions
-	var _characterIndex = Game_Character.prototype.characterIndex;
-	Game_Character.prototype.characterIndex = function() {
+	var _characterIndex = Game_CharacterBase.prototype.characterIndex;
+	Game_CharacterBase.prototype.characterIndex = function() {
 		if (this.motion() && this.motion().index >= 0) {
 			return this.motion().index;
 		} else {
@@ -192,8 +192,8 @@
 	};
 
 	// override the character file for motions (rarely used)
-	var _characterName = Game_Character.prototype.characterName;
-	Game_Character.prototype.characterName = function() {
+	var _characterName = Game_CharacterBase.prototype.characterName;
+	Game_CharacterBase.prototype.characterName = function() {
 		if (this.motion() && this.motion().suffix) {
 			return _characterName.call(this) + this.motion().suffix;
 		} else {
@@ -202,8 +202,8 @@
 	};
 
 	// override normal animation wait for motions
-	var _animationWait = Game_Character.prototype.animationWait;
-	Game_Character.prototype.animationWait = function() {
+	var _animationWait = Game_CharacterBase.prototype.animationWait;
+	Game_CharacterBase.prototype.animationWait = function() {
 		if (this.motion() && this.motion().wait > 0) {
 			return this.motion().wait;
 		} else {
@@ -212,8 +212,8 @@
 	};
 
 	// update the motion, and reset at the end of a non-looping, non-held motion
-	var _updatePattern = Game_Character.prototype.updatePattern;
-	Game_Character.prototype.updatePattern = function() {
+	var _updatePattern = Game_CharacterBase.prototype.updatePattern;
+	Game_CharacterBase.prototype.updatePattern = function() {
 		var motion = this.motion();
 		if (motion) {
 			if (motion.loop) {
