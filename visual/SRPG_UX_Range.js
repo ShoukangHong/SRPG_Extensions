@@ -66,8 +66,6 @@
 	var _rangeBlendMode = Number(parameters['Range Blend Mode']) || 0;
 	var _rangeOpacity = parameters['Range Opacity Eval'] || "1.0";
 
-	// TODO: special indicators for ZoC during movement? Create them by checking "mover.isHoveZoC(event)"
-
 //====================================================================
 // Sprite_SrpgMoveTile
 //====================================================================
@@ -119,12 +117,21 @@
 		};
 
 		Sprite_SrpgAoE.prototype.updateAnimation = function() {
+			var oldFrame = Math.floor(this._frameCount / _rangeDelay);
 			this._frameCount++;
 			this._frameCount %= _rangeFrames * _rangeDelay;
+			var newFrame = Math.floor(this._frameCount / _rangeDelay);
 
 			var frame = this._frameCount;
 			var max = Math.max(_rangeFrames * _rangeDelay, 1);
 			this.opacity = 255 * Number(eval(_rangeOpacity));
+			if (oldFrame != newFrame) this.redrawArea(this._size, this._type, this._dir);
+		};
+
+		var _setAoE = Sprite_SrpgAoE.prototype.setAoE;
+		Sprite_SrpgAoE.prototype.setAoE = function(x, y, size, type, dir) {
+			_setAoE.call(this, x, y, size, type, dir);
+			this.blendMode = _rangeBlendMode;
 		};
 	}
 
