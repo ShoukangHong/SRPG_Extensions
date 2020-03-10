@@ -456,7 +456,7 @@
 	Game_Enemy.prototype.srpgMove = function() {
 		var n = _defaultMove;
 		if (this.enemy().meta.srpgMove) {
-			n = Number(this.currentClass().meta.srpgMove);
+			n = Number(this.enemy().meta.srpgMove);
 		}
 		n += this.tagValue("srpgMovePlus");
 		return Math.max(n, 0);
