@@ -36,6 +36,15 @@
  * @max 255
  * @default 255
  *
+ * @param Path Layer
+ * @desc Whether the path appears above or below events
+ * @type select
+ * @option Below Events
+ * @value 0
+ * @option Above Events
+ * @value 7
+ * @default 0
+ *
  * @param Max Path Length
  * @desc Maximum length for the move path
  * Unless your move ranges are >99, you can leave it alone
@@ -57,6 +66,7 @@
 	var _fileName = parameters['Path Image'] || "srpgPath";
 	var _blendMode = Number(parameters['Path Blend Mode']) || 0;
 	var _opacity = Number(parameters['Path Opacity']) || 0;
+	var _layer = Number(parameters['Path Layer']) || 0;
 	var _maxLength = Number(parameters['Max Path Length']) || 99;
 
 //====================================================================
@@ -147,7 +157,7 @@
 		this._frameCount = 0;
 		this._posX = -1;
 		this._posY = -1;
-		this.z = 0;
+		this.z = _layer;
 		this._dir = 0;
 		this._lastDir = 0;
 		this.visible = false;

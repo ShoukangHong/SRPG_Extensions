@@ -51,6 +51,15 @@
  * @type string
  * @default 0.55 * (max - frame) / max
  *
+ * @param Range Layer
+ * @parent Range Image
+ * @desc Whether the ranges appear above or below events
+ * @type select
+ * @option Below Events
+ * @value 0
+ * @option Above Events
+ * @value 7
+ * @default 0
  *
  * @help
  * Replace the movement and attack range indicators with images you can customize
@@ -65,12 +74,19 @@
 	var _rangeDelay = Number(parameters['Range Frame Delay']) || 10;
 	var _rangeBlendMode = Number(parameters['Range Blend Mode']) || 0;
 	var _rangeOpacity = parameters['Range Opacity Eval'] || "1.0";
+	var _rangeLayer = Number(parameters['Range Layer']) || 0;
 
 //====================================================================
 // Sprite_SrpgMoveTile
 //====================================================================
 
 	Sprite_SrpgMoveTile._bitmap = ImageManager.loadSystem(_rangeFileName);
+
+	var _srpgMoveTile_initialize = Sprite_SrpgMoveTile.prototype.initialize;
+	Sprite_SrpgMoveTile.prototype.initialize = function() {
+		_srpgMoveTile_initialize.call(this);
+		this.z = _rangeLayer;
+	};
 
 	Sprite_SrpgMoveTile.prototype.setThisMoveTile = function(x, y, attackFlag) {
 		this._frameCount = 0;
@@ -106,6 +122,12 @@
 //====================================================================
 
 	if (window.Sprite_SrpgAoE) {
+		var _srpgAoE_initialize = Sprite_SrpgAoE.prototype.initialize;
+		Sprite_SrpgAoE.prototype.initialize = function() {
+			_srpgAoE_initialize.call(this);
+			this.z = _rangeLayer;
+		};
+
 		Sprite_SrpgAoE.prototype.drawCell = function(bitmap, x, y, tileWidth, tileHeight) {
 			var src = Sprite_SrpgMoveTile._bitmap;
 			var w = src.width / _rangeFrames;
