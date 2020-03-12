@@ -88,17 +88,21 @@
 	var parameters = PluginManager.parameters('DRQ_EventMotions');
 	// the motion list is fairly complex, actually
 	Sprite_Character.MOTIONS = {};
-	var _motionList = JSON.parse(parameters['Motions']);
-	for (var i = 0; i < _motionList.length; i++) {
-		var _motion = JSON.parse(_motionList[i]);
-		if (!_motion.Name || _motion.Name.length == 0) continue;
-		Sprite_Character.MOTIONS[_motion.Name.toUpperCase()] = {
-			index: Number(_motion.Index || 0),
-			wait: Number(_motion.Wait || 0),
-			loop: Number(_motion.Loop) == 2,
-			hold: Number(_motion.Loop) == 1,
-			suffix: _motion.Suffix || ''
-		};
+	if (parameters['Motions']) {
+		var _motionList = JSON.parse(parameters['Motions']);
+		for (var i = 0; i < _motionList.length; i++) {
+			if (_motionList[i]) {
+				var _motion = JSON.parse(_motionList[i]);
+				if (!_motion.Name || _motion.Name.length == 0) continue;
+				Sprite_Character.MOTIONS[_motion.Name.toUpperCase()] = {
+					index: Number(_motion.Index || 0),
+					wait: Number(_motion.Wait || 0),
+					loop: Number(_motion.Loop) == 2,
+					hold: Number(_motion.Loop) == 1,
+					suffix: _motion.Suffix || ''
+				};
+			}
+		}
 	}
 	var _compat = !!eval(parameters['Compatability Mode']) ? 0 : -1;
 
