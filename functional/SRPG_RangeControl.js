@@ -393,7 +393,8 @@
 		if (skill.meta.srpgRange == -1) {
 			if (!this.hasNoWeapons()) {
 				var weapon = this.weapons()[0];
-				return Number(weapon.meta.weaponMinRange);
+				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
+				else return 0;
 			}
 		} else if (skill.meta.srpgMinRange) {
 			return Number(skill.meta.srpgMinRange);
@@ -406,8 +407,9 @@
 		if (skill.meta.srpgRange == -1) {
 			if (!this.hasNoWeapons()) {
 				var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
-				return Number(weapon.meta.weaponMinRange);
-			} else {
+				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
+				else return 0;
+			} else if (this.enemy().meta.weaponMinRange) {
 				return Number(this.enemy().meta.weaponMinRange);
 			}
 		} else if (skill.meta.srpgMinRange) {
