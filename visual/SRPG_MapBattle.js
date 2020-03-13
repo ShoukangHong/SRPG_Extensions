@@ -27,12 +27,13 @@
  * New skill / item tags:
  * <targetAnimation:X> shows animation X on the target cell
  *
- * <directionalAnimation:X> shows an animation on the target cell
- * based on the direction the user's facing:
- * X when facing down
- * X+1 when facing left
- * X+2 when facing right
- * X+3 when facing up
+ * <directionalAnimation:X> shows an animation on the target cell based on
+ * the direction the user is facing, following the usual direction order.
+ * For example, <directionalAnimation:20> will show the following:
+ * Animation 20 when facing down
+ * Animation 21 when facing left
+ * Animation 22 when facing right
+ * Animation 23 when facing up
  *
  * Features under development:
  * - "Counter Attack" trait (SRPG counters are supported)
@@ -234,7 +235,7 @@
 				// has a directional animation
 				if (action.item().meta.directionalAnimation) {
 					var dir = user.event().direction()/2 - 1;
-					$gamePlayer.requestAnimation(dir + Number(action.item().meta.targetAnimation));
+					$gamePlayer.requestAnimation(dir + Number(action.item().meta.directionalAnimation));
 				}
 			}
 			data.count = 1;
