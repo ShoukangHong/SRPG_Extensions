@@ -514,8 +514,10 @@
 	var _canUse = Game_BattlerBase.prototype.canUse;
 	Game_BattlerBase.prototype.canUse = function(item) {
 		if (item && $gameSystem.isSRPGMode() &&
-		Number(item.meta.srpgAreaRange) > 0 && this._srpgActionTiming == 0) {
+		Number(item.meta.srpgAreaRange) > 0 && this._srpgActionTiming != 1) {
 			if ($gameSystem.isSubBattlePhase() === 'invoke_action' ||
+			$gameSystem.isSubBattlePhase() === 'auto_actor_action' ||
+			$gameSystem.isSubBattlePhase() === 'enemy_action' ||
 			$gameSystem.isSubBattlePhase() === 'battle_window') {
 				return $gameTemp.inArea($gameTemp.targetEvent());
 			}
