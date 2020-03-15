@@ -344,13 +344,12 @@
 	};
 
 //====================================================================
-// Player activates AoE skills
+// Using AoE skills
 //====================================================================
 
 	// update the active AoE when you move the cursor
 	var _startMapEvent = Game_Player.prototype.startMapEvent;
 	Game_Player.prototype.startMapEvent = function(x, y, triggers, normal) {
-		_startMapEvent.call(this, x, y, triggers, normal);
 		if ($gameSystem.isSRPGMode() && triggers.contains(1)) {
 			if ($gameSystem.isSubBattlePhase() === 'actor_target' && $gameSystem.positionInRange(x, y)) {
 				$gameTemp.showArea(x, y);
@@ -359,28 +358,28 @@
 				$gameTemp.clearAoE();
 			}
 		}
-	};
-
-	// clear the AoE when you cancel targeting
-	var _updateCallMenu = Scene_Map.prototype.updateCallMenu;
-	Scene_Map.prototype.updateCallMenu = function() {
-		_updateCallMenu.call(this);
-		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_command_window') {
-			if (Input.isTriggered('cancel') || TouchInput.isCancelled()) $gameTemp.clearAoE();
-		}
+		_startMapEvent.call(this, x, y, triggers, normal);
 	};
 
 	// show the AoE when you start targeting
 	var _startActorTargetting = Scene_Map.prototype.startActorTargetting;
 	Scene_Map.prototype.startActorTargetting = function() {
 		_startActorTargetting.call(this);
-		if ($gameSystem.isSubBattlePhase() === 'actor_target') {
-			var x = $gamePlayer.posX();
-			var y = $gamePlayer.posY();
-			if ($gameSystem.positionInRange(x, y)) {
-				$gameTemp.showArea(x, y);
-			}
+		var x = $gamePlayer.posX();
+		var y = $gamePlayer.posY();
+		if ($gameSystem.positionInRange(x, y)) {
+			$gameTemp.showArea(x, y);
 		}
+	};
+
+	// clear the AoE when you cancel targeting
+	var _updateCallMenu = Scene_Map.prototype.updateCallMenu;
+	Scene_Map.prototype.updateCallMenu = function() {
+		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_target' &&
+		(Input.isTriggered('cancel') || TouchInput.isCancelled())) {
+			$gameTemp.clearAoE();
+		}
+		_updateCallMenu.call(this);
 	};
 
 	// highlight the area of effect for an AoE
@@ -428,6 +427,7 @@
 					if (_srpgPredictionWindowMode != 3) $gameSystem.setSrpgStatusWindowNeedRefresh(userArray);
 					$gameSystem.setSrpgBattleWindowNeedRefresh(userArray, targetArray);
 					$gameSystem.setSubBattlePhase('battle_window');
+					return true;
 				}
 			}
 		}
