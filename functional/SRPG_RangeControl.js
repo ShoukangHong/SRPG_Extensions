@@ -5,7 +5,7 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG range enhancements
+ * @plugindesc SRPG line of sight, zone of control, and variable ranges
  * @author Dr. Q
  *
  * @param Line of Sight
