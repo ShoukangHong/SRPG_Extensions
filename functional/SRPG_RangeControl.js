@@ -5,8 +5,25 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG line of sight, zone of control, and variable ranges
+ * @plugindesc SRPG line of sight, passability, variable range, and more
  * @author Dr. Q
+ *
+ * @param Range
+ *
+ * @param Default Range
+ * @desc Range for weapons and skills if not specified
+ * @parent Range
+ * @type number
+ * @min 0
+ * @default 1
+ *
+ * @param Default Min Range
+ * @desc Minimum range for weapons and skills if not specified
+ * @parent Range
+ * @type number
+ * @min 0
+ * @default 0
+ *
  *
  * @param Line of Sight
  *
@@ -50,6 +67,26 @@
  * @max 7
  * @default 0
  *
+ *
+ * @param Movement
+ *
+ * @param Block Friends
+ * @desc By default, do friends block movement?
+ * @parent Movement
+ * @type boolean
+ * @on YES
+ * @off NO
+ * @default false
+ *
+ * @param Block Opponents
+ * @desc By default, do opponents block movement?
+ * @parent Movement
+ * @type boolean
+ * @on YES
+ * @off NO
+ * @default true
+ *
+ *
  * @param Zone of Control
  *
  * @param Base ZoC
@@ -76,11 +113,23 @@
  *
  * Use plugin parameters to set the default line-of-sight rules.
  *
+ * New actor and class notetags:
+ * <srpgWeaponRange:X>           # specify default range if no weapon is equipped
+ * <srpgWeaponMinRange:X>        # specify default minimum range if no weapon is equipped
+ *
  * New actor, class, enemy, weapon, armor, state, and skill note tags:
  * <srpgZoC:X>                   # increases the unit's ZoC effect by X
  * <srpgThroughZoC:X>            # increases the unit's "through ZoC" by X
+ * <blockFriends:true/false>     # if true, friends cannot move through you
+ * <blockOpponents:true/false>   # if true, opponents cannot move through you
  * <srpgRangePlus:X>             # increases or decreases variable ranges by X
  * <srpgMovePlus:X>              # now works on actor, class, enemy, and skill notes
+ * <passFriends>                 # unit can move through all friend units
+ * <passOpponents>               # unit can move through all opponent units
+ *
+ * *blockFriends and blockOpponents use the value of the highest-priority tag:
+ * states > equipment > skills > enemy > class > actor > plugin defaults
+ * Units with passFriends and passOpponents have priority over blocking tags
  *
  * New skill / item notetags:
  * <srpgVariableRange>           # range will be affected by srpgRangePlus tags
@@ -95,13 +144,17 @@
 
 (function(){
 	var parameters = PluginManager.parameters('SRPG_RangeControl');
-	var _defaultTag = Number(parameters['Through Terrain']);
+	var _defaultRange = Number(parameters['Default Range'] || 0);
+	var _defaultMinRange = Number(parameters['Default Min Range'] || 1);
+	var _defaultTag = Number(parameters['Through Terrain'] || 0);
 	var _throughObject = !!eval(parameters['Through Objects']);
 	var _throughOpponent = !!eval(parameters['Through Opponents']);
 	var _throughFriend = !!eval(parameters['Through Friends']);
 	var _throughEvent = !!eval(parameters['Through Events']);
-	var _baseZoc = Number(parameters['Base ZoC']);
-	var _baseThroughZoc = Number(parameters['Base Through ZoC']);
+	var _blockFriends = !!eval(parameters['Block Friends']);
+	var _blockOpponents = !!eval(parameters['Block Opponents']);
+	var _baseZoc = Number(parameters['Base ZoC'] || 0);
+	var _baseThroughZoc = Number(parameters['Base Through ZoC'] || 0);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _defaultMove = Number(coreParameters['defaultMove'] || 4);
@@ -155,6 +208,50 @@
 			if (weapon && weapon.meta[type]) n += Number(weapon.meta[type]);
 		}
 		return n;
+	};
+
+	// check for the highest priority tag
+	Game_BattlerBase.prototype.priorityTag = function(type) {
+		var t;
+		this.states().some(function(state) {
+			if (state && state.meta[type]) {
+				t = state.meta[type];
+				return true;
+			}
+			return false;
+		});
+		return t;
+	};
+	Game_Actor.prototype.priorityTag = function(type) {
+		var t = Game_BattlerBase.prototype.priorityTag.call(this, type);
+		if (t) return t;
+		this.equips().some(function(item) {
+			if (item && item.meta[type]) {
+				t = item.meta[type];
+				return true;
+			}
+			return false;
+		});
+		if (t) return t;
+		this.skills().some(function(skill) {
+			if (skill && skill.meta[type]) {
+				t = skill.meta[type];
+				return true;
+			}
+			return false;
+		});
+		if (t) return t;
+		if (this.currentClass().meta[type]) return this.currentClass().meta[type];
+		if (this.actor().meta[type]) return this.actor().meta[type];
+	};
+	Game_Enemy.prototype.priorityTag = function(type) {
+		var t = Game_BattlerBase.prototype.priorityTag.call(this, type);
+		if (t) return t;
+		if (!this.hasNoWeapons()) {
+			var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
+			if (weapon && weapon.meta[type]) return weapon.meta[type];
+		}
+		if (this.enemy().meta[type]) return this.enemy().meta[type];
 	};
 
 //====================================================================
@@ -337,6 +434,73 @@
 	};
 
 //====================================================================
+// collision during movement
+//====================================================================
+
+	// finer control over passability checks
+	Game_CharacterBase.prototype.isSrpgCollidedWithEvents = function(x, y) {
+		var events = $gameMap.events();
+		var friendType = $gameTemp.activeEvent().isType();
+		var opponentType = $gameTemp.activeEvent().isType() === 'actor' ? 'enemy' : 'actor';
+		var passFriends = $gameTemp.activeEvent().passFriends();
+		var passOpponents = $gameTemp.activeEvent().passOpponents();
+		return events.some(function(event) {
+			if (event.isErased() || !event.pos(x, y)) return false;
+			if (event.isType() === 'object' && event.characterName() != '') return true;
+			if (event.isType() === friendType && !passFriends && event.blocksFriends()) return true;
+			if (event.isType() === opponentType && !passOpponents && event.blocksOpponents()) return true;
+			return false;
+		});
+	};
+
+	// determine whether a character blocks unit movement
+	Game_CharacterBase.prototype.blocksFriends = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var block = unitAry[1].priorityTag('blockFriends');
+			if (block) return !!eval(block);
+		}
+		return _blockFriends;
+	};
+	Game_CharacterBase.prototype.blocksOpponents = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var block = unitAry[1].priorityTag('blockOpponents');
+			if (block) return !!eval(block);
+		}
+		return _blockOpponents;
+	};
+	Game_CharacterBase.prototype.passFriends = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var pass = unitAry[1].priorityTag('passFriends');
+			if (pass) return !!eval(block);
+		}
+		return false;
+	};
+	Game_CharacterBase.prototype.passOpponents = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var pass = unitAry[1].priorityTag('passOpponents');
+			if (pass) return !!eval(pass);
+		}
+		return false;
+	};
+
+	// make sure you don't move onto an enemy
+	var _triggerAction = Game_Player.prototype.triggerAction;
+	Game_Player.prototype.triggerAction = function() {
+		// TODO: Only if a valid movement position?
+		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_move' && 
+		(Input.isTriggered('ok') || TouchInput.isTriggered()) &&
+		!$gameSystem.areTheyNoUnits(this._x, this._y, 'enemy')) {
+			SoundManager.playBuzzer();
+			return true;
+		}
+		else _triggerAction.call(this);
+	};
+
+//====================================================================
 // zone of control checks
 //====================================================================
 
@@ -388,40 +552,55 @@
 
 	// re-define minimum range to work with adjustable maximum range
 	Game_Actor.prototype.srpgSkillMinRange = function(skill) {
-		if (!skill) return 0;
+		if (!skill) return _defaultMinRange;
 
 		if (skill.meta.srpgRange == -1) {
 			if (!this.hasNoWeapons()) {
 				var weapon = this.weapons()[0];
 				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
-				else return 0;
+				else if (this.currentClass().meta.weaponMinRange) return Number(this.currentClass().meta.weaponMinRange);
+				else if (this.actor().meta.weaponMinRange) return Number(this.actor().meta.weaponMinRange);
+				else return _defaultMinRange;
 			}
 		} else if (skill.meta.srpgMinRange) {
 			return Number(skill.meta.srpgMinRange);
 		}
-		return 0;
+		return _defaultMinRange;
 	};
 	Game_Enemy.prototype.srpgSkillMinRange = function(skill) {
-		if (!skill) return 0;
+		if (!skill) return _defaultMinRange;
 
 		if (skill.meta.srpgRange == -1) {
 			if (!this.hasNoWeapons()) {
 				var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
 				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
-				else return 0;
+				else return _defaultMinRange;
 			} else if (this.enemy().meta.weaponMinRange) {
 				return Number(this.enemy().meta.weaponMinRange);
 			}
 		} else if (skill.meta.srpgMinRange) {
 			return Number(skill.meta.srpgMinRange);
 		}
-		return 0;
+		return _defaultMinRange;
 	};
 
 	// apply the bonuses to the maximum range
-	var _actor_skillRange = Game_Actor.prototype.srpgSkillRange;
 	Game_Actor.prototype.srpgSkillRange = function(skill) {
-		var range = _actor_skillRange.call(this, skill);
+		var range = _defaultRange;
+
+		if (skill && skill.meta.srpgRange == -1) {
+			if (!this.hasNoWeapons()) {
+				var weapon = this.weapons()[0];
+				if (weapon.meta.weaponRange) range = Number(weapon.meta.weaponRange);
+			} else if (this.currentClass().meta.weaponRange) {
+				range = Number(this.currentClass().meta.weaponRange);
+			} else if (this.actor().meta.weaponRange) {
+				range = Number(this.actor().meta.weaponRange);
+			}
+		} else if (skill && skill.meta.srpgRange) {
+			range = Number(skill.meta.srpgRange);
+		}
+
 		var minRange = this.srpgSkillMinRange(skill);
 		var rangeMod = this.srpgRangePlus();
 		if (skill.meta.srpgVariableRange) {
@@ -429,9 +608,20 @@
 		}
 		return Math.max(range, minRange);
 	};
-	var _enemy_skillRange = Game_Enemy.prototype.srpgSkillRange;
 	Game_Enemy.prototype.srpgSkillRange = function(skill) {
-		var range = _enemy_skillRange.call(this, skill);
+		var range = _defaultRange;
+
+		if (skill && skill.meta.srpgRange == -1) {
+			if (!this.hasNoWeapons()) {
+				var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
+				if (weapon.meta.weaponRange) range = Number(weapon.meta.weaponRange);
+			} else if (this.enemy().meta.weaponRange) {
+				range = Number(this.enemy().meta.weaponRange);
+			}
+		} else if (skill && skill.meta.srpgRange) {
+			range = Number(skill.meta.srpgRange);
+		}
+
 		var minRange = this.srpgSkillMinRange(skill);
 		var rangeMod = this.srpgRangePlus();
 		if (skill.meta.srpgVariableRange) {
