@@ -81,6 +81,7 @@
 		var list = $gameTemp.moveList();
 		if (!moveTable || !list || !list[0]) return;
 		if (!$gameSystem.areTheyNoUnits(destX, destY, 'actor')) return;
+		if (!$gameSystem.areTheyNoUnits(destX, destY, 'enemy')) return;
 		var directions = moveTable[1];
 		var x = list[0][0];
 		var y = list[0][1];
