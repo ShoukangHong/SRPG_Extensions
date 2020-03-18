@@ -447,6 +447,7 @@
 		var passOpponents = $gameTemp.activeEvent().passOpponents();
 		return events.some(function(event) {
 			if (event.isErased() || !event.pos(x, y)) return false;
+			if (event === $gameTemp.activeEvent()) return false;
 			if (event.isType() === 'object' && event.characterName() != '') return true;
 			if (event.isType() === friendType && !passFriends && event.blocksFriends()) return true;
 			if (event.isType() === opponentType && !passOpponents && event.blocksOpponents()) return true;
