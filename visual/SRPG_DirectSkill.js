@@ -56,7 +56,7 @@
 
 (function(){
 	// parameters
-	var parameters = PluginManager.parameters('_SRPG_DirectSkill');
+	var parameters = PluginManager.parameters('SRPG_DirectSkill');
 	var _skillId = Number(parameters['Skill ID']) || 1;
 	if (Imported && Imported.YEP_EquipBattleSkills) _skillId = 'battleSkills';
 	var _maxRows = Number(parameters['Max Rows']) || 6;
