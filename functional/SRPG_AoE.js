@@ -5,7 +5,7 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG Area-of-effect skills
+ * @plugindesc SRPG area-of-effect skills
  * @author Dr. Q + アンチョビ
  * 
  * @param AoE Color
@@ -358,6 +358,9 @@
 				$gameTemp.clearAoE();
 			}
 		}
+		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_target' && $gameTemp.isSkillAoE()) {
+			return;
+		}
 		_startMapEvent.call(this, x, y, triggers, normal);
 	};
 
@@ -380,6 +383,17 @@
 			$gameTemp.clearAoE();
 		}
 		_updateCallMenu.call(this);
+	};
+
+	// check if the skill currently selected has an AoE
+	Game_Temp.prototype.isSkillAoE = function() {
+		var unit = $gameTemp.activeEvent();
+		var actor = $gameSystem.EventToUnit(unit.eventId())[1];
+		if (!actor) return false;
+		var skill = actor.currentAction();
+		if (!skill) return false;
+		if (skill.area() <= 0) return false;
+		return true;
 	};
 
 	// highlight the area of effect for an AoE
@@ -434,6 +448,13 @@
 		return _triggerAction.call(this);
 	};
 
+	// Clear AoE targets when cancelling the big target
+	var _selectPreviousSrpgBattleStart = Scene_Map.prototype.selectPreviousSrpgBattleStart;
+	Scene_Map.prototype.selectPreviousSrpgBattleStart = function() {
+		_selectPreviousSrpgBattleStart.call(this);
+		$gameTemp.clearAreaTargets();
+	};
+
 	// Apply AoEs for auto units as well
 	var _srpgInvokeAutoUnitAction = Scene_Map.prototype.srpgInvokeAutoUnitAction;
 	Scene_Map.prototype.srpgInvokeAutoUnitAction = function() {
@@ -476,7 +497,6 @@
 
 		// queue up actions on each target
 		for (var i = 0; i < targets.length; i++) {
-			var targetArray = $gameSystem.EventToUnit(targets[i].eventId());
 			this.addAreaTarget({
 				item: skill.item(),
 				event: targets[i]
