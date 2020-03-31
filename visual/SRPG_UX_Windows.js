@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================
@@ -8,27 +8,22 @@
  * @plugindesc SRPG window improvements
  * @author Dr. Q
  *
- * @param Hide no EXP
- * @desc Don't show the exp bar if you didn't get any
+ * @param Hide No Rewards
+ * @desc Don't show the window if you don't get anything
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  *
  * @param Hide Self Target
  * @desc Hide the target window when self-targeting
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  * @help
  * Minor improvements to the behavior of windows
  * 
  * Options:
- * - Hide no EXP: Don't show the experience bar after
- *   battles that didn't grant experience, and hides
- *   the pop-up entirely if there were no rewards.
+ * - Hide No Rewards: Don't show the rewards window for
+ *   battles that didn't grant exp, gold, or items.
  *
  * - Hide Self Target: Only shows one status window for
  *   skills that target the user.
@@ -41,8 +36,8 @@
 
 (function(){
 	// parameters
-	var parameters = PluginManager.parameters('SRPG_UX_Selection');
-	var _hideReward = !!eval(parameters['Hide no EXP']);
+	var parameters = PluginManager.parameters('SRPG_UX_Windows');
+	var _hideNoReward = !!eval(parameters['Hide No Rewards']);
 	var _hideSelfTarget = !!eval(parameters['Hide Self Target']);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
@@ -60,7 +55,11 @@
 		}
 		this.makeRewards();
 		// only show the rewards if there's something to show
-		if (!_hideReward || this._rewards.exp > 0 || this._rewards.gold > 0 || this._rewards.items.length > 0) {
+		if (!_hideNoReward || this._rewards.exp > 0 || this._rewards.gold > 0 || this._rewards.items.length > 0) {
+			console.log("Hide no rewards: " + _hideNoReward);
+			console.log("Experience: " + this._rewards.exp );
+			console.log("Gold: " + this._rewards.gold);
+			console.log("Items: " + this._rewards.items);
 			this._srpgBattleResultWindow.setRewards(this._rewards);
 			var se = {};
 			se.name = _rewardSe;
