@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================
@@ -11,8 +11,6 @@
  * @param Cursor-Style Movement
  * @desc Make the cursor move like a cursor
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  * 
  * @param Cursor Delay
@@ -31,8 +29,6 @@
  * @param Animate Cursor
  * @desc Makes the cursor animate automatically
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  *
  * @param Animate Delay
@@ -45,24 +41,25 @@
  * @param Start On Next Actor
  * @desc Move to the next actor automatically after finishing an action
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  *
  *
  * @param Switch Actor While Moving
  * @desc Select a different actor while moving to move them instead
  * @type boolean
- * @on YES
- * @off NO
+ * @default true
+ *
+ *
+ * @param Quick Attack
+ * @desc Select an enemy while moving to target them with an attack
+ * Requires SRPG_RangeControl.js
+ * @type boolean
  * @default true
  *
  *
  * @param Quick Target Switch
  * @desc Use Page Up / Page Down to cycle through targets
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  * 
  * @param Quick Switch From Preview
@@ -70,16 +67,12 @@
  * Does not apply to AoEs or skill that can target map cells
  * @parent Quick Target Switch
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  *
  * @param Auto Target
  * @desc Cursor starts on a targetable unit, if one is available
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  *
  * @param Auto Select
@@ -140,6 +133,8 @@
 
 	var quickTarget = !!eval(parameters['Quick Target Switch']);
 	var previewSwitch = !!eval(parameters['Quick Switch From Preview']);
+
+	var quickAttack = !!eval(parameters['Quick Attack']);
 
 	var autoTarget = !!eval(parameters['Auto Target']);
 	var autoSelect = Number(parameters['Auto Select']);
@@ -387,6 +382,36 @@
 		SceneManager._scene._mapSrpgActorCommandStatusWindow.setBattler(battlerArray[1]);
 	};
 
+	// jump ahead to attack, targeting a specific space
+	Game_System.prototype.quickAttack = function(x, y) {
+		if ($gameTemp.RangeTable(x, y)[0] >= 0) {
+			var event = $gameTemp.activeEvent();
+			var unitAry = $gameSystem.EventToUnit(event.eventId());
+			if (event && unitAry && unitAry[1]) {
+				// move to position
+				var mx = $gameTemp.RangeTable(x, y)[2];
+				var my = $gameTemp.RangeTable(x, y)[3];
+				if (mx == undefined || my == undefined) return false;
+				var route = $gameTemp.MoveTable(mx, my)[1];
+				event.srpgMoveRouteForce(route);
+				$gameSystem.setSrpgWaitMoving(true);
+				// ready the attack
+				unitAry[1].srpgMakeNewActions();
+				unitAry[1].action(0).setAttack();
+				var item = $dataSkills[unitAry[1].attackSkillId()];
+				// jump to the attack command
+				$gameTemp.clearMoveTable();
+				event.makeRangeTable(mx, my, unitAry[1].srpgSkillRange(item), [0], mx, my, item);
+				$gameTemp.pushRangeListToMoveList();
+				$gameTemp.setResetMoveList(true);
+				$gameSystem.setSubBattlePhase('actor_target');
+				$gamePlayer.startMapEvent(x, y, [1]);
+				return true;
+			}
+		}
+		return false;
+	};
+
 	// add next/previous target commands to the attack preview
 	var _createSrpgBattleWindow = Scene_Map.prototype.createSrpgBattleWindow;
 	Scene_Map.prototype.createSrpgBattleWindow = function() {
@@ -451,14 +476,26 @@
 		if (moveSwitch && $gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_move' &&
 		(Input.isTriggered('ok') || TouchInput.isTriggered())) {
 			var newId = 0;
-			$gameMap.eventsXy($gamePlayer.posX(), $gamePlayer.posY()).forEach(function(event) {
-				if (!event.isErased() && event.isType() === 'actor') {
-					if ($gameSystem.EventToUnit(event.eventId())[1].canInput()) newId = event.eventId();
+			$gameMap.events().forEach(function (event) {
+				if (!event.isErased() && event.pos($gamePlayer.posX(), $gamePlayer.posY()) &&
+				event.isType() === 'actor' && $gameSystem.EventToUnit(event.eventId())[1].canInput()) {
+						newId = event.eventId();
 				}
 			});
 			if (newId > 0 && newId !== $gameTemp.activeEvent().eventId()) {
 				SoundManager.playOk();
 				$gameSystem.changeMovingActor(newId);
+				return;
+			}
+		}
+		// quickly line up an attack on an enemy during movement
+		if (quickAttack && $gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_move' &&
+		(Input.isTriggered('ok') || TouchInput.isTriggered())) {
+			var validTarget = $gameMap.events().some(function (event){
+				return (!event.isErased() && event.pos($gamePlayer.posX(), $gamePlayer.posY()) &&
+				event.isType() == 'enemy');
+			});
+			if (validTarget && $gameSystem.quickAttack($gamePlayer.posX(), $gamePlayer.posY())) {
 				return;
 			}
 		}
