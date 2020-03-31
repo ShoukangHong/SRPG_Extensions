@@ -8,6 +8,7 @@
  * @plugindesc SRPG line of sight, passability, variable range, and more
  * @author Dr. Q
  *
+ *
  * @param Range
  *
  * @param Default Range
@@ -31,36 +32,29 @@
  * @desc If true, objects don't block LoS
  * @parent Line of Sight
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  * @param Through Opponents
  * @desc If true, the users's enemies don't block LoS
  * @parent Line of Sight
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  * @param Through Friends
  * @desc If true, the users's allies don't block LoS
  * @parent Line of Sight
  * @type boolean
- * @on YES
- * @off NO
  * @default true
  *
  * @param Through Events
  * @desc If true, playerEvents don't block LoS
  * @parent Line of Sight
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  * @param Through Terrain
  * @desc Terrain IDs above this number block line of sight
+ * -1 uses the same setting as the user's mobility
  * @parent Line of Sight
  * @type number
  * @min -1
@@ -68,23 +62,28 @@
  * @default 0
  *
  *
- * @param Movement
+ * @param Unit Passability
  *
  * @param Block Friends
- * @desc By default, do friends block movement?
- * @parent Movement
+ * @desc If true, units block their friends' movement
+ * @parent Unit Passability
  * @type boolean
- * @on YES
- * @off NO
  * @default false
  *
  * @param Block Opponents
- * @desc By default, do opponents block movement?
- * @parent Movement
+ * @desc If true, units block their opponents' movement
+ * @parent Unit Passability
  * @type boolean
- * @on YES
- * @off NO
  * @default true
+ *
+ *
+ * @param Event Passability
+ *
+ * @param Block Units
+ * @desc if true, playerEvents block units' movement
+ * @parent Event Passability
+ * @type boolean
+ * @default false
  *
  *
  * @param Zone of Control
@@ -106,7 +105,8 @@
  * @default 0
  *
  * @help
- * Adds line of sight, modifiable ranges, and zone of control for SRPG combat
+ * Adds line of sight, modifiable ranges, passability options, and zone of control
+ * for SRPG combat
  *
  * If an enemy unit's ZoC is higher than your Through ZoC, you are forced to stop
  * when you try to move past them. ZoC and Through ZoC cannot go below 0.
@@ -127,6 +127,8 @@
  * <srpgMovePlus:X>              # now works on actor, class, enemy, and skill notes
  * <passFriends>                 # unit can move through all friend units
  * <passOpponents>               # unit can move through all opponent units
+ * <passEvents>                  # unit can move through playerEvents
+ * <passObjects>                 # unit can move through all objects
  *
  * *blockFriends and blockOpponents use the value of the highest-priority tag:
  * states > equipment > skills > enemy > class > actor > plugin defaults
@@ -154,6 +156,7 @@
 	var _throughEvent = !!eval(parameters['Through Events']);
 	var _blockFriends = !!eval(parameters['Block Friends']);
 	var _blockOpponents = !!eval(parameters['Block Opponents']);
+	var _eventBlockUnits = !!eval(parameters['Block Units']);
 	var _baseZoc = Number(parameters['Base ZoC'] || 0);
 	var _baseThroughZoc = Number(parameters['Base Through ZoC'] || 0);
 
@@ -294,8 +297,8 @@
 		var edges = [];
 		if (range > 0) edges = [[x, y, range, [0], []]];
 		if (minRange <= 0 && $gameTemp.RangeTable(x, y)[0] < 0) {
-			if ($gameTemp.MoveTable(x, y)[0] < 0) $gameTemp.pushRangeList([x, y, true]);
-			$gameTemp.setRangeTable(x, y, range, [0]);
+			if ($gameTemp.MoveTable(x, y)[0] < 0) $gameTemp.pushRangeList([x, y, true, x, y]);
+			$gameTemp.setRangeTable(x, y, range, [0], x, y);
 		}
 		$gameMap.makeSrpgLoSTable(this);
 
@@ -316,8 +319,8 @@
 				if ($gameMap.distTo(x, y, dx, dy) >= minRange &&
 				$gameTemp.RangeTable(dx, dy)[0] < 0 &&
 				this.srpgRangeExtention(dx, dy, x, y, skill, range)) {
-					if ($gameTemp.MoveTable(dx, dy)[0] < 0) $gameTemp.pushRangeList([dx, dy, true]);
-					$gameTemp.setRangeTable(dx, dy, drange, route);
+					if ($gameTemp.MoveTable(dx, dy)[0] < 0) $gameTemp.pushRangeList([dx, dy, true, x, y]);
+					$gameTemp.setRangeTable(dx, dy, drange, route, x, y);
 				}
 			}
 		}
@@ -332,6 +335,42 @@
 		}
 		return true;
 	}
+
+	// Build the move table more efficiently
+	Game_System.prototype.srpgMakeMoveTable = function(event) {
+		var user = $gameSystem.EventToUnit(event.eventId())[1];
+		var item = null;
+		if (user.action(0) && user.action(0).item()) item = user.action(0).item();
+		else item = $dataSkills[user.attackSkillId()];
+
+		$gameTemp.clearMoveTable();
+		event.makeMoveTable(event.posX(), event.posY(), user.srpgMove(), null, user.srpgThroughTag());
+		if (item.meta.notUseAfterMove) { // cannot move before attacking
+			var x = event.posX();
+			var y = event.posY();
+			event.makeRangeTable(x, y, user.srpgSkillRange(item), null, x, y, item);
+		} else { // can move
+			$gameTemp.moveList().forEach(function(pos) {
+				var x = pos[0];
+				var y = pos[1];
+				var occupied = $gameMap.events().some(function(otherEvent) {
+					if (otherEvent === event || otherEvent.isErased() || !otherEvent.pos(x, y)) return false;
+					if (otherEvent.isType() === 'enemy') return true;
+					if (otherEvent.isType() === 'actor') return true;
+					if (otherEvent.isType() === 'playerEvent') return true;
+				});
+				if (!occupied) {
+					event.makeRangeTable(x, y, user.srpgSkillRange(item), null, x, y, item);
+				}
+			});
+		}
+		$gameTemp.pushRangeListToMoveList();
+	};
+
+	// stores the original position for use in quick targeting and AI
+	Game_Temp.prototype.setRangeTable = function(x, y, move, route, oriX, oriY) {
+		this._RangeTable[x][y] = [move, route, oriX, oriY];
+	};
 
 	// these functions aren't necessary anymore
 	Game_Temp.prototype.initialMoveTable = function(oriX, oriY, oriMove) {
@@ -352,8 +391,16 @@
 	Game_Map.prototype.makeSrpgLoSTable = function(source) {
 		var losTable = {};
 		this.events().forEach(function(event) {
-			if (event !== source && !event.isErased() && event.isType() && event.isType() != 'unitEvent') {
-				losTable[event.posX()+','+event.posY()] = event.isType();
+			if (event !== source && !event.isErased() && event.isType()) {
+				switch (event.isType()) {
+					case 'object':
+						if (event.characterName() == '') break;
+					case 'actor':
+					case 'enemy':
+					case 'playerEvent':
+						losTable[event.posX()+','+event.posY()] = event.isType();
+						break;
+				}
 			}
 		});
 		this._losTable = losTable;
@@ -445,17 +492,20 @@
 		var opponentType = $gameTemp.activeEvent().isType() === 'actor' ? 'enemy' : 'actor';
 		var passFriends = $gameTemp.activeEvent().passFriends();
 		var passOpponents = $gameTemp.activeEvent().passOpponents();
+		var passEvents = $gameTemp.activeEvent().passEvents();
+		var passObjects = $gameTemp.activeEvent().passObjects();
 		return events.some(function(event) {
 			if (event.isErased() || !event.pos(x, y)) return false;
 			if (event === $gameTemp.activeEvent()) return false;
-			if (event.isType() === 'object' && event.characterName() != '') return true;
+			if (event.isType() === 'object' && !passObjects && event.characterName() != '') return true;
+			if (event.isType() === 'playerEvent' && !passEvents && event.blocksUnits()) return true;
 			if (event.isType() === friendType && !passFriends && event.blocksFriends()) return true;
 			if (event.isType() === opponentType && !passOpponents && event.blocksOpponents()) return true;
 			return false;
 		});
 	};
 
-	// determine whether a character blocks unit movement
+	// determine which units a character blocks
 	Game_CharacterBase.prototype.blocksFriends = function() {
 		var unitAry = $gameSystem.EventToUnit(this.eventId());
 		if (unitAry) {
@@ -472,11 +522,15 @@
 		}
 		return _blockOpponents;
 	};
+	Game_CharacterBase.prototype.blocksUnits = function() {
+		return (this.isType && this.isType() === 'playerEvent' && _eventBlockUnits);
+	};
+	// determine which events a character ignores
 	Game_CharacterBase.prototype.passFriends = function() {
 		var unitAry = $gameSystem.EventToUnit(this.eventId());
 		if (unitAry) {
 			var pass = unitAry[1].priorityTag('passFriends');
-			if (pass) return !!eval(block);
+			if (pass) return !!eval(pass);
 		}
 		return false;
 	};
@@ -484,6 +538,22 @@
 		var unitAry = $gameSystem.EventToUnit(this.eventId());
 		if (unitAry) {
 			var pass = unitAry[1].priorityTag('passOpponents');
+			if (pass) return !!eval(pass);
+		}
+		return false;
+	};
+	Game_CharacterBase.prototype.passEvents = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var pass = unitAry[1].priorityTag('passEvents');
+			if (pass) return !!eval(pass);
+		}
+		return false;
+	};
+	Game_CharacterBase.prototype.passObjects = function() {
+		var unitAry = $gameSystem.EventToUnit(this.eventId());
+		if (unitAry) {
+			var pass = unitAry[1].priorityTag('passObjects');
 			if (pass) return !!eval(pass);
 		}
 		return false;
@@ -560,9 +630,12 @@
 			if (!this.hasNoWeapons()) {
 				var weapon = this.weapons()[0];
 				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
-				else if (this.currentClass().meta.weaponMinRange) return Number(this.currentClass().meta.weaponMinRange);
-				else if (this.actor().meta.weaponMinRange) return Number(this.actor().meta.weaponMinRange);
-				else return _defaultMinRange;
+			} else if (this.currentClass().meta.weaponMinRange) {
+				return Number(this.currentClass().meta.weaponMinRange);
+			} else if (this.actor().meta.weaponMinRange) {
+				return Number(this.actor().meta.weaponMinRange);
+			} else {
+				return _defaultMinRange;
 			}
 		} else if (skill.meta.srpgMinRange) {
 			return Number(skill.meta.srpgMinRange);
@@ -576,7 +649,6 @@
 			if (!this.hasNoWeapons()) {
 				var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
 				if (weapon.meta.weaponMinRange) return Number(weapon.meta.weaponMinRange);
-				else return _defaultMinRange;
 			} else if (this.enemy().meta.weaponMinRange) {
 				return Number(this.enemy().meta.weaponMinRange);
 			}
