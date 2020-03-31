@@ -55,11 +55,15 @@
  * @parent Range Image
  * @desc Whether the ranges appear above or below events
  * @type select
- * @option Below Events
+ * @option Below All Events
  * @value 0
- * @option Above Events
- * @value 7
- * @default 0
+ * @option Below Player
+ * @value 2
+ * @option Above Player
+ * @value 4
+ * @option Above All Events
+ * @value 6
+ * @default 2
  *
  * @help
  * Replace the movement and attack range indicators with images you can customize

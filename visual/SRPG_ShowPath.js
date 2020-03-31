@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================
@@ -39,11 +39,15 @@
  * @param Path Layer
  * @desc Whether the path appears above or below events
  * @type select
- * @option Below Events
+ * @option Below All Events
  * @value 0
- * @option Above Events
- * @value 7
- * @default 0
+ * @option Below Player
+ * @value 2
+ * @option Above Player
+ * @value 4
+ * @option Above All Events
+ * @value 6
+ * @default 2
  *
  * @param Max Path Length
  * @desc Maximum length for the move path
