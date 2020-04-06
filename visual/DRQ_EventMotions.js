@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// copyright 2019 Doktor_Q all rights reserved.
+// copyright 2020 Doktor_Q all rights reserved.
 // Released under the MIT license.
 // http://opensource.org/licenses/mit-license.php
 //=============================================================================

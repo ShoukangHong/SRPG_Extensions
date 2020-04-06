@@ -5,27 +5,29 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG show skills on the map (v0.9)
+ * @plugindesc SRPG show skills on the map (v0.95)
  * @author Dr. Q
  *
- * @param Fast AoE
- * @desc Don't wait for animations between hits of an AoE
- * It will still wait for counter attacks
- * @type boolean
- * @on ON
- * @off OFF
- * @default false
+ * @param Animation Delay
+ * @desc Frames between animation start and skill effect
+ * Set to -1 to wait for all animations to finish
+ * @type number
+ * @min -1
+ * @default 25
  *
  * @help
  * WIP extension that runs SRPG combat on the map.
  * May not be compatible with all battle plugins.
  *
- * In lunatic mode tags, script calls, or damage formulas .event()
+ * In lunatic mode tags, script calls, or damage formulas, .event()
  * gets the event associated with that unit on the map, if you want
  * to manipulate it (movement, change appearance, etc).
  *
  * New skill / item tags:
- * <targetAnimation:X> shows animation X on the target cell
+ * <targetAnimation:X>  shows animation X on the target cell
+ * <animationDelay:X>   waits X frames between the animation and effect
+ *                      overrides the default settings
+ * <animationDelay:-1>  waits for animations to finish before the effect
  *
  * <directionalAnimation:X> shows an animation on the target cell based on
  * the direction the user is facing, following the usual direction order.
@@ -43,13 +45,13 @@
  * - SRPG_UncounterableAttack (see below)
  *
  * The plugin is incompatible with SRPG_UncounterableAttack, so the
- * <srpgUncounterable> has been directly integrated. Skills and items
- * with this tag will never provoke a counter attack from the enemy.
+ * <srpgUncounterable> tag has been directly integrated. Skills and items
+ * with this tag will not trigger an SRPG counter attack from the target.
  */
 
 (function(){
 	var parameters = PluginManager.parameters('SRPG_MapBattle');
-	var _fastAoE = !!eval(parameters['Fast AoE']);
+	var _animDelay = Number(parameters['Animation Delay'] || -1);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _srpgTroopID = Number(coreParameters['srpgTroopID'] || 1);
@@ -146,25 +148,42 @@
 				this._srpgBattleResultWindow.close();
 				$gameSystem.setSubBattlePhase('after_battle');
 			}
+		} else if ($gameSystem.isSubBattlePhase() === 'invoke_action') {
+			this.updateSkillWait();
 		}
 	}
+
+	// time-based skill wait!
+	Scene_Map.prototype.setSkillWait = function(time) {
+		this._skillWait = time;
+	};
+	Scene_Map.prototype.updateSkillWait = function() {
+		if (this._skillWait > 0) this._skillWait--;
+	};
+	Scene_Map.prototype.resetSkillWait = function() {
+		this._skillWait = undefined;
+	};
+	Scene_Map.prototype.skillWait = function() {
+		return this._skillWait || 0;
+	};
+	Scene_Map.prototype.skillAnimWait = function() {
+		return (this._skillWait == undefined);
+	};
 
 	// check if we're still waiting for a skill to finish
 	Scene_Map.prototype.waitingForSkill = function() {
 		if ($gameTemp.isCommonEventReserved()) return true;
 
-		var active = $gameTemp.activeEvent();
-		if (active.isAnimationPlaying() || !active.isStopping()) return true;
+		if ($gamePlayer.isAnimationPlaying() || !$gamePlayer.isStopping()) return true;
 
-		if ($gamePlayer.isAnimationPlaying()) return true;
+		if (this.skillAnimWait()) {
+			var active = $gameTemp.activeEvent();
+			if (active.isAnimationPlaying() || !active.isStopping()) return true;
 
-		// TODO: Better handling of multi-hit moves?
-		if (_fastAoE &&
-		($gameTemp.areaTargets && $gameTemp.areaTargets().length > 0) ||
-		($gameTemp.StackActions && $gameTemp.StackActions().length > 0)) return false;
-
-		var target = $gameTemp.targetEvent();
-		if (target.isAnimationPlaying() || !target.isStopping()) return true;
+			var target = $gameTemp.targetEvent();
+			if (!target) return false;
+			if (target.isAnimationPlaying() || !target.isStopping()) return true;
+		} else if (this.skillWait() > 0) return true;
 
 		return false;
 	};
@@ -180,7 +199,8 @@
 			action: action,
 			user: user,
 			target: target,
-			count: 0,
+			phase: 'start',
+			count: action.numRepeats(),
 		};
 		if (addToFront) this._srpgSkillList.unshift(data);
 		else this._srpgSkillList.push(data);
@@ -212,59 +232,94 @@
 		var user = data.user;
 		var target = data.target;
 
-		// pre-skill (costs and casting animations)
-		if (data.count == 0) {
-			if (!user.canMove() || !user.canUse(action.item())) {
-				user.setLastTarget(target);
-				user.removeCurrentAction();
-				user.onAllActionsEnd();
-				return false;
-			}
-			user.useItem(action.item());
-			// if it's not a repeat as part of an AoE
-			if (!$gameTemp.isFirstAction || $gameTemp.isFirstAction() ||
-			user.srpgSkillAreaRange(action.item()) <=  0) {
-				// has a cast animation, is a skill, isn't an attack or guard
-				if (action.item().castAnimation && !action.isAttack() && !action.isGuard() && action.isSkill()) {
-					user.event().requestAnimation(action.item().castAnimation);
+		switch (data.phase) {
+			// skill cost and casting animations
+			case 'start':
+				if (!user.canMove() || !user.canUse(action.item())) {
+					data.phase = 'end';
+					this._srpgSkillList.unshift(data);
+					break;
 				}
-				// has a target animation
-				if (action.item().meta.targetAnimation) {
-					$gamePlayer.requestAnimation(Number(action.item().meta.targetAnimation));
+				user.useItem(action.item());
+				if (!$gameTemp.isFirstAction || $gameTemp.isFirstAction()) {
+					var castAnim = false;
+					// cast animation, is a skill, isn't an attack or guard
+					if (action.item().castAnimation && action.isSkill() && !action.isAttack() && !action.isGuard()) {
+						user.event().requestAnimation(action.item().castAnimation);
+						castAnim = true;
+					}
+					// target animation
+					if (action.item().meta.targetAnimation) {
+						$gamePlayer.requestAnimation(Number(action.item().meta.targetAnimation));
+						castAnim = true;
+					}
+					// directional target animation
+					if (action.item().meta.directionalAnimation) {
+						var dir = user.event().direction()/2 - 1;
+						$gamePlayer.requestAnimation(dir + Number(action.item().meta.directionalAnimation));
+						castAnim = true;
+					}
 				}
-				// has a directional animation
-				if (action.item().meta.directionalAnimation) {
-					var dir = user.event().direction()/2 - 1;
-					$gamePlayer.requestAnimation(dir + Number(action.item().meta.directionalAnimation));
+				// check for reflection
+				if (user != target && Math.random() < action.itemMrf(target)) {
+					data.phase = 'reflect';
+				} else {
+					data.phase = 'animation';
 				}
-			}
-			data.count = 1;
-			this._srpgSkillList.unshift(data);
-		}
-		// repeating skill effects
-		else if (data.count <= action.numRepeats()) {
-			// check for reflection on the first repeat
-			if (data.count === 1 && user != target && Math.random() < action.itemMrf(target)) {
+				this._srpgSkillList.unshift(data);
+				break;
+
+			// reflected magic
+			case 'reflect':
 				target.performReflection();
 				if (target.reflectAnimationId) {
 					target.event().requestAnimation(target.reflectAnimationId());
 				}
-				target = user;
 				data.target = user;
-			}
-			var animation = action.item().animationId;
-			if (animation < 0) animation = (user.isActor() ? user.attackAnimationId1() : user.attackAnimationId());
-			target.event().requestAnimation(animation);
-			action.apply(target);
-			data.count += 1;
-			this._srpgSkillList.unshift(data);
-		}
-		// post skill (run common event and clean up)
-		else {
-			action.applyGlobal();
-			user.setLastTarget(target);
-			user.removeCurrentAction();
-			user.onAllActionsEnd();
+				data.phase = 'animation';
+				this._srpgSkillList.unshift(data);
+				break;
+
+			// show skill animation
+			case 'animation':
+				var animation = action.item().animationId;
+				if (animation < 0) animation = (user.isActor() ? user.attackAnimationId1() : user.attackAnimationId());
+				target.event().requestAnimation(animation);
+				data.phase = 'effect';
+				this._srpgSkillList.unshift(data);
+				// time-based delay
+				var delay = _animDelay;
+				if (action.item().meta.animationDelay) delay = Number(action.item().meta.animationDelay);
+				if (delay >= 0) this.setSkillWait(delay);
+				break;
+
+			// apply skill effects
+			case 'effect':
+				action.apply(target);
+				data.count--;
+				// skill effect repeats
+				if (data.count > 0) {
+					data.phase = 'animation';
+				} else {
+					data.phase = 'global';
+				}
+				this._srpgSkillList.unshift(data);
+				this.resetSkillWait();
+				break;
+
+			// run the common events and such
+			case 'global':
+				action.applyGlobal();
+				data.phase = 'end';
+				this._srpgSkillList.unshift(data);
+				break;
+
+			// clean up
+			case 'end':
+				user.setLastTarget(target);
+				user.removeCurrentAction();
+				user.onAllActionsEnd();
+				break;
 		}
 
 		// Show the results

@@ -14,47 +14,56 @@
  * @parent Default Motions
  * @type text
  * @desc Motion played by the active unit
+ * Preferrably looping
  *
  * @param Attack
  * @parent Default Motions
  * @type text
  * @desc Default motion when using Attack
+ * Preferrably non-looping
  *
  * @param Guard
  * @parent Default Motions
  * @type text
  * @desc Default motion when using Guard
+ * Preferrably non-looping
  *
  * @param Physical Skill
  * @parent Default Motions
  * @type text
  * @desc Default motion when using a physical skill
+ * Preferrably non-looping
  *
  * @param Magical Skill
  * @parent Default Motions
  * @parent Default Motions
  * @type text
  * @desc Default motion when using a magical skill
+ * Preferrably non-looping
  *
  * @param Certain Hit Skill
  * @parent Default Motions
  * @type text
  * @desc Default motion when using a certain hit skill
+ * Preferrably non-looping
  *
  * @param Use Item
  * @parent Default Motions
  * @type text
  * @desc Default motion when using an item
+ * Preferrably non-looping
  *
  * @param Damage
  * @parent Default Motions
  * @type text
  * @desc Motion when taking damage
+ * Preferrably non-looping
  *
  * @param Evade
  * @parent Default Motions
  * @type text
  * @desc Motion when evading
+ * Preferrably non-looping
  *
  *
  * @param Screen Shake
@@ -231,7 +240,10 @@
 		var user = data.user;
 		var event = user.event();
 		if (event && !user.noMotions()) {
-			if (data.count > 0 && data.count <= action.numRepeats()) {
+			if (data.phase === 'start') {
+				var motion = action.item().meta.srpgCastMotion;
+				if (motion) event.playMotion(motion);
+			} else if (data.phase === 'animation') {
 				var motion = action.item().meta.srpgMotion;
 				if (motion) event.playMotion(motion);
 				else if (action.isAttack() || action.item().meta.useSrpgAttackMotion) event.playMotion(user.attackMotion());
@@ -239,9 +251,8 @@
 				else if (action.isPhysical()) event.playMotion(_default.physical);
 				else if (action.isMagical()) event.playMotion(_default.magical);
 				else if (action.isCertainHit()) event.playMotion(_default.certain);
-			} else if (data.count == 0) {
-				var motion = action.item().meta.srpgCastMotion;
-				if (motion) event.playMotion(motion);
+			} else if (data.phase === 'end') {
+				event.clearMotion();
 			}
 		}
 		_srpgInvokeMapSkill.call(this, data);
@@ -288,11 +299,18 @@
 		if (oldEvent) oldEvent.clearMotion();
 	};
 
-	// clear motions when they finish their turn
-	var _onAllActionsEnd = Game_Battler.prototype.onAllActionsEnd;
-	Game_Battler.prototype.onAllActionsEnd = function() {
-		_onAllActionsEnd.call(this);
-		if ($gameSystem.isSRPGMode()) this.event().clearMotion();
+	// wait for motions to finish before advancing a skill
+	var _waitingForSkill = Scene_Map.prototype.waitingForSkill;
+	Scene_Map.prototype.waitingForSkill = function() {
+		if (this.skillAnimWait()) {
+			var active = $gameTemp.activeEvent();
+			if (active.hasSingleMotion() && !active.motion().idle) return true;
+
+			/*var target = $gameTemp.targetEvent();
+			if (target && target.hasSingleMotion() && !target.motion().idle) return true;*/
+		}
+
+		return _waitingForSkill.call(this);
 	};
 
 //====================================================================
@@ -321,8 +339,8 @@
 	};
 
 	// if the battler has an idle motion, switch back to it any time it clears
-	var _clearMotion = Game_Character.prototype.clearMotion;
-	Game_Character.prototype.clearMotion = function() {
+	var _clearMotion = Game_CharacterBase.prototype.clearMotion;
+	Game_CharacterBase.prototype.clearMotion = function() {
 		_clearMotion.call(this);
 		if ($gameSystem.isSRPGMode()) {
 			var battlerArray = $gameSystem.EventToUnit(this.eventId());
@@ -349,18 +367,13 @@
 		}
 	};
 
-	// TODO: Update idle motion as soon as a state is removed
+	// Update idle motion as soon as a state is removed
 	var _removeState = Game_Battler.prototype.removeState;
 	Game_Battler.prototype.removeState = function(stateId) {
 		_removeState.call(this, stateId);
 		if ($gameSystem.isSRPGMode() && this.event() &&
 		this.event().motion() && this.event().motion().idle) {
-			var idleMotion = this.mapIdleMotion();
-			if (idleMotion) {
-				this.event().playCustomMotion(idleMotion, false);
-			} else {
-				this.event().clearMotion();
-			}
+			this.event().clearMotion();
 		}
 	};
 
