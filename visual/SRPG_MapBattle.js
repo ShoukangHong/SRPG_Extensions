@@ -5,8 +5,26 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG show skills on the map (v0.95)
+ * @plugindesc SRPG show skills on the map (v0.99)
  * @author Dr. Q
+ *
+ * @param Use Map Battle
+ * @desc Default Map Battle usage
+ * @type select
+ * @option Always
+ * @value 2
+ * @option When Switch is On
+ * @value 1
+ * @option Never 
+ * @value 0
+ * @default 2
+ *
+ * @param Map Battle Switch
+ * @parent Use Map Battle
+ * @desc Switch that activates map battle
+ * @type switch
+ * @default 0
+ *
  *
  * @param Animation Delay
  * @desc Frames between animation start and skill effect
@@ -16,14 +34,26 @@
  * @default 25
  *
  * @help
- * WIP extension that runs SRPG combat on the map.
- * May not be compatible with all battle plugins.
+ * Runs SRPG combat on the map. May be incompatible with other battle system 
+ * plugins.
  *
  * In lunatic mode tags, script calls, or damage formulas, .event()
  * gets the event associated with that unit on the map, if you want
  * to manipulate it (movement, change appearance, etc).
  *
+ * /!\ IMPORTANT /!\
+ * Some plugins and mechanics will work differently between the Map Battle and
+ * normal battles, especially if you use action sequences. Anything that can be
+ * used in both, such as counter attacks, should be thoroughly tested to ensure
+ * its works the same.
+ * In lunatic mode tags or formulas, $gameSystem.useMapBattle() returns true if
+ * the skill is being run on the map, instead of in the battle scene.
+ * 
+ *
+ *
  * New skill / item tags:
+ * <mapBattle:true>     always uses this skill on the map
+ * <mapBattle:false>    never uses this skill on the map
  * <targetAnimation:X>  shows animation X on the target cell
  * <animationDelay:X>   waits X frames between the animation and effect
  *                      overrides the default settings
@@ -37,20 +67,22 @@
  * Animation 22 when facing right
  * Animation 23 when facing up
  *
- * Features under development:
+ * Features not yet supported in map battle:
  * - "Counter Attack" trait (SRPG counters are supported)
  *
- * Known incompatibile plugins:
+ * Known incompatible plugins with map battle:
  * - SRPG_AgiAttackPlus
  * - SRPG_UncounterableAttack (see below)
  *
- * The plugin is incompatible with SRPG_UncounterableAttack, so the
+ * MapBattle mode is incompatible with SRPG_UncounterableAttack, so the
  * <srpgUncounterable> tag has been directly integrated. Skills and items
- * with this tag will not trigger an SRPG counter attack from the target.
+ * with this tag will not trigger a counter attack during map battles.
  */
 
 (function(){
 	var parameters = PluginManager.parameters('SRPG_MapBattle');
+	var _useMapBattle = Number(parameters['Use Map Battle'] || 2);
+	var _mapBattleSwitch = Number(parameters['Map Battle Switch'] || 0);
 	var _animDelay = Number(parameters['Animation Delay'] || -1);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
@@ -85,19 +117,52 @@
 // process attacks directly on the map scene
 //====================================================================
 
+
+	// force a specific style of battle for one exchange
+	Game_System.prototype.forceSRPGBattleMode = function(type) {
+		this._battleMode = type;
+	};
+	Game_System.prototype.clearSRPGBattleMode = function() {
+		this._battleMode = null;
+	};
+
+	// control whether to use map battle or not
+	Game_System.prototype.useMapBattle = function() {
+		// forced mode
+		if (this._battleMode === 'map') return true;
+		else if (this._battleMode === 'normal') return false;
+		// system defaults
+		else if (_useMapBattle == 2) return true;
+		else if (_useMapBattle == 0) return false;
+		else return (_mapBattleSwitch > 0 && $gameSwitches.value(_mapBattleSwitch));
+	};
+
 	// set up the map attacks
+	var _srpgBattleStart = Scene_Map.prototype.srpgBattleStart;
 	Scene_Map.prototype.srpgBattleStart = function(userArray, targetArray) {
-		$gameSystem.clearSrpgStatusWindowNeedRefresh();
-		$gameSystem.clearSrpgBattleWindowNeedRefresh();
-
-		this.preBattleSetDirection();
-		this.eventBeforeBattle();
-
 		// get the data
 		var user = userArray[1];
 		var target = targetArray[1];
 		var action = user.action(0);
 		var reaction = null;
+
+		// check if we're using map battle on this skill
+		if (action && action.item()) {
+			var mapBattleTag = action.item().meta.mapBattle;
+			if (mapBattleTag == 'true') $gameSystem.forceSRPGBattleMode('map');
+			else if (mapBattleTag == 'false') $gameSystem.forceSRPGBattleMode('normal');
+		}
+		if (!$gameSystem.useMapBattle()) {
+			_srpgBattleStart.call(this, userArray, targetArray);
+			return;
+		}
+
+		// pre-skill setup
+		$gameSystem.clearSrpgStatusWindowNeedRefresh();
+		$gameSystem.clearSrpgBattleWindowNeedRefresh();
+
+		this.preBattleSetDirection();
+		this.eventBeforeBattle();
 
 		// set up the troop and the battle party
 		$gameTroop.clearSrpgBattleEnemys();
@@ -130,14 +195,20 @@
 	var _SRPG_SceneMap_update = Scene_Map.prototype.update;
 	Scene_Map.prototype.update = function() {
 		_SRPG_SceneMap_update.call(this);
-		// process attacks as long as nothing else is going on
-		if ($gameSystem.isSubBattlePhase() === 'invoke_action' && !this.waitingForSkill() &&
-		!this._srpgBattleResultWindow.isChangeExp()) {
+
+		// there are definitely no map skills in play
+		if (!$gameSystem.isSRPGMode() || $gameSystem.isSubBattlePhase() !== 'invoke_action' ||
+		!$gameSystem.useMapBattle()) {
+			return;
+		}
+
+		// update map skills
+		if (!this.waitingForSkill() && !this._srpgBattleResultWindow.isChangeExp()) {
 			// process skill effects
 			if (this.srpgHasMapSkills()) {
 				this.srpgUpdateMapSkill();
 			}
-			// show battle results after it evaluates
+			// show battle results after it finishes
 			else if (!this._srpgBattleResultWindow.isOpen() && !this._srpgBattleResultWindow.isOpening()) {
 				var showResults = this.processSrpgVictory();
 				if (!showResults) $gameSystem.setSubBattlePhase('after_battle');
@@ -148,10 +219,17 @@
 				this._srpgBattleResultWindow.close();
 				$gameSystem.setSubBattlePhase('after_battle');
 			}
-		} else if ($gameSystem.isSubBattlePhase() === 'invoke_action') {
+		} else {
+			// handles time-based waiting
 			this.updateSkillWait();
 		}
-	}
+	};
+
+	var _srpgAfterAction = Scene_Map.prototype.srpgAfterAction;
+	Scene_Map.prototype.srpgAfterAction = function() {
+		$gameSystem.clearSRPGBattleMode();
+		_srpgAfterAction.call(this);
+	};
 
 	// time-based skill wait!
 	Scene_Map.prototype.setSkillWait = function(time) {
@@ -200,7 +278,7 @@
 			user: user,
 			target: target,
 			phase: 'start',
-			count: action.numRepeats(),
+			count: action.numRepeats() + action.item()._srpgRepeats,
 		};
 		if (addToFront) this._srpgSkillList.unshift(data);
 		else this._srpgSkillList.push(data);
@@ -426,7 +504,7 @@
 	};
 
 //====================================================================
-// show popups for map and status damage
+// show popups for tile and status damage
 //====================================================================
 
 	// show pop-up for regeneration
@@ -512,13 +590,13 @@
 // compatability overrides
 //====================================================================
 
-	// restore repeats when using Battle Engine Core
+	// track intended repeats from before BattleEngineCore
 	if (DataManager.addActionEffects) {
 		var _addActionEffects = DataManager.addActionEffects;
 		DataManager.addActionEffects = function(obj, array) {
-			var repeats = obj.repeats;
+			var initialRepeats = obj.repeats;
 			_addActionEffects.call(this, obj, array);
-			obj.repeats = repeats; // restore the repeat count
+			obj._srpgRepeats = initialRepeats - obj.repeats;
 		};
 	}
 

@@ -251,8 +251,6 @@
 				else if (action.isPhysical()) event.playMotion(_default.physical);
 				else if (action.isMagical()) event.playMotion(_default.magical);
 				else if (action.isCertainHit()) event.playMotion(_default.certain);
-			} else if (data.phase === 'end') {
-				event.clearMotion();
 			}
 		}
 		_srpgInvokeMapSkill.call(this, data);
@@ -263,6 +261,8 @@
 	Game_BattlerBase.prototype.srpgShowResults = function() {
 		_srpgShowResults.call(this);
 		var result = this.result();
+
+		if (!$gameSystem.useMapBattle()) return;
 
 		var event = this.event();
 		if (event && !this.noMotions()) {
