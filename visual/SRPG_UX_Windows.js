@@ -56,10 +56,6 @@
 		this.makeRewards();
 		// only show the rewards if there's something to show
 		if (!_hideNoReward || this._rewards.exp > 0 || this._rewards.gold > 0 || this._rewards.items.length > 0) {
-			console.log("Hide no rewards: " + _hideNoReward);
-			console.log("Experience: " + this._rewards.exp );
-			console.log("Gold: " + this._rewards.gold);
-			console.log("Items: " + this._rewards.items);
 			this._srpgBattleResultWindow.setRewards(this._rewards);
 			var se = {};
 			se.name = _rewardSe;
