@@ -198,10 +198,11 @@
 	// override the character file for motions (rarely used)
 	var _characterName = Game_CharacterBase.prototype.characterName;
 	Game_CharacterBase.prototype.characterName = function() {
-		if (this.motion() && this.motion().suffix) {
-			return _characterName.call(this) + this.motion().suffix;
+		var baseName = _characterName.call(this);
+		if (baseName !== '' && this.motion() && this.motion().suffix) {
+			return baseName + this.motion().suffix;
 		} else {
-			return _characterName.call(this);
+			return baseName;
 		}
 	};
 
