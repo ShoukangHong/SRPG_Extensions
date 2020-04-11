@@ -38,9 +38,10 @@
  * directly, catching other targets by coincidence
  * 
  * Skill / item notetags:
- * <srpgAreaRange:x> creates an AoE of size x
- * <srpgAreaType:y> changes the shape of the AoE
+ * <srpgAreaRange:x>    creates an AoE of size x
+ * <srpgAreaType:y>     changes the shape of the AoE
  * type defaults to 'circle' if not specified
+ *
  *
  * The following shapes are available, shown at a size of 2.
  *
@@ -118,6 +119,16 @@
  *      0
  *    1   1
  *  2       2
+ *
+ *
+ * Script calls for advanced users:
+ *  yourEvent.battlersNear(size, 'shape', [direction])
+ *  yourEvent.enemiesNear(size, 'shape', [direction])
+ *  yourEvent.actorsNear(size, 'shape', [direction])
+ *
+ * Returns a list of actors/enemies/both near the specified event, supporting
+ * the same AoE shapes listed above. If you use a directional AoE shape and no
+ * direction is specified, it will point where your event is facing
  */
 
 (function(){
@@ -125,7 +136,7 @@
 	var parameters = PluginManager.parameters('SRPG_AoE');
 	var _oneSquare = !!eval(parameters['Show One Square AoE']);
 	var _areaColor = parameters['AoE Color'];
-	var _refocus = parameters['Refocus Camera'];
+	var _refocus = !!eval(parameters['Refocus Camera']);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _srpgPredictionWindowMode = Number(coreParameters['srpgPredictionWindowMode'] || 1);
@@ -266,8 +277,29 @@
 	};
 
 //====================================================================
-// Game_Character
+// Check what's in an area
 //====================================================================
+
+	// get a list of battlers near another battler
+	Game_Character.prototype.battlersNear = function(size, shape, dir, type) {
+		var x = this.posX();
+		var y = this.posY();
+		dir = dir || this.direction();
+
+		var battlers = [];
+		$gameMap.events().forEach(function (event) {
+			if (event.isErased() || !event.inArea(x, y, size, shape, dir)) return;
+			var unitAry = $gameSystem.EventToUnit(enemyEvent.eventId());
+			if (unitAry && (unitAry[0] === type || type === null)) battlers.push(unitAry[1]);
+		});
+		return battlers;
+	};
+	Game_Character.prototype.enemiesNear = function(size, shape, dir) {
+		return this.battlersNear(size, shape, dir, 'enemy');
+	};
+	Game_Character.prototype.actorsNear = function(size, shape, dir) {
+		return this.battlersNear(size, shape, dir, 'actor');
+	};
 
 	// check if a character is within a specified AoE
 	Game_Character.prototype.inArea = function(x, y, size, shape, dir) {
@@ -533,8 +565,8 @@
 	// AoE skills can be used as long as you're in the targeted area
 	var _canUse = Game_BattlerBase.prototype.canUse;
 	Game_BattlerBase.prototype.canUse = function(item) {
-		if (item && $gameSystem.isSRPGMode() &&
-		Number(item.meta.srpgAreaRange) > 0 && this._srpgActionTiming != 1) {
+		if (item && $gameSystem.isSRPGMode() && this._srpgActionTiming != 1 &&
+		Number(item.meta.srpgAreaRange) > 0) {
 			if ($gameSystem.isSubBattlePhase() === 'invoke_action' ||
 			$gameSystem.isSubBattlePhase() === 'auto_actor_action' ||
 			$gameSystem.isSubBattlePhase() === 'enemy_action' ||
