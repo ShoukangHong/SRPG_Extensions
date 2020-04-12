@@ -215,17 +215,17 @@
 //====================================================================
 
 	// get the motion for a basic attack
-	Game_BattlerBase.prototype.attackMotion = function() {
+	Game_BattlerBase.prototype.mapAttackMotion = function() {
 		return _default.attack;
 	};
-	Game_Actor.prototype.attackMotion = function() {
+	Game_Actor.prototype.mapAttackMotion = function() {
 		var motion = _default.attack
 		this.weapons().forEach(function(weapon) {
 			if (weapon && weapon.meta.srpgAttackMotion) motion = weapon.meta.srpgAttackMotion;
 		});
 		return motion;
 	};
-	Game_Enemy.prototype.attackMotion = function() {
+	Game_Enemy.prototype.mapAttackMotion = function() {
 		if (!this.hasNoWeapons()) {
 			var weapon = $dataWeapons[this.enemy().meta.srpgWeapon];
 			if (weapon && weapon.meta.srpgAttackMotion) return weapon.meta.srpgAttackMotion;
@@ -246,7 +246,7 @@
 			} else if (data.phase === 'animation') {
 				var motion = action.item().meta.srpgMotion;
 				if (motion) event.playMotion(motion);
-				else if (action.isAttack() || action.item().meta.useSrpgAttackMotion) event.playMotion(user.attackMotion());
+				else if (action.isAttack() || action.item().meta.useSrpgAttackMotion) event.playMotion(user.mapAttackMotion());
 				else if (action.isItem()) event.playMotion(_default.item);
 				else if (action.isPhysical()) event.playMotion(_default.physical);
 				else if (action.isMagical()) event.playMotion(_default.magical);
