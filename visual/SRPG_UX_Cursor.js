@@ -384,15 +384,14 @@
 
 	// jump ahead to attack, targeting a specific space
 	Game_System.prototype.quickAttack = function(x, y) {
-		if ($gameTemp.RangeTable(x, y)[0] >= 0) {
+		if ($gameTemp.RangeMoveTable && $gameTemp.RangeMoveTable(x, y).length > 0) {
 			var event = $gameTemp.activeEvent();
 			var unitAry = $gameSystem.EventToUnit(event.eventId());
 			if (event && unitAry && unitAry[1]) {
 				// move to position
-				var mx = $gameTemp.RangeTable(x, y)[2];
-				var my = $gameTemp.RangeTable(x, y)[3];
-				if (mx == undefined || my == undefined) return false;
-				var route = $gameTemp.MoveTable(mx, my)[1];
+				var pos = $gameTemp.RangeMoveTable(x, y)[0];
+				if (!pos) return false;
+				var route = $gameTemp.MoveTable(pos.x, pos.y)[1];
 				event.srpgMoveRouteForce(route);
 				$gameSystem.setSrpgWaitMoving(true);
 				// ready the attack
@@ -401,7 +400,7 @@
 				var item = $dataSkills[unitAry[1].attackSkillId()];
 				// jump to the attack command
 				$gameTemp.clearMoveTable();
-				event.makeRangeTable(mx, my, unitAry[1].srpgSkillRange(item), [0], mx, my, item);
+				event.makeRangeTable(pos.x, pos.y, unitAry[1].srpgSkillRange(item), [0], pos.x, pos.y, item);
 				$gameTemp.pushRangeListToMoveList();
 				$gameTemp.setResetMoveList(true);
 				$gameSystem.setSubBattlePhase('actor_target');
