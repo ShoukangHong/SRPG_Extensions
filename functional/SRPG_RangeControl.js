@@ -297,8 +297,8 @@
 		var edges = [];
 		if (range > 0) edges = [[x, y, range, [0], []]];
 		if (minRange <= 0 && $gameTemp.RangeTable(x, y)[0] < 0) {
-			if ($gameTemp.MoveTable(x, y)[0] < 0) $gameTemp.pushRangeList([x, y, true, x, y]);
-			$gameTemp.setRangeTable(x, y, range, [0], x, y);
+			if ($gameTemp.MoveTable(x, y)[0] < 0) $gameTemp.pushRangeList([x, y, true]);
+			$gameTemp.setRangeTable(x, y, range, [0]);
 		}
 		$gameMap.makeSrpgLoSTable(this);
 
@@ -316,11 +316,12 @@
 				forward[10-d] = 1;
 				if (drange > 0) edges.push([dx, dy, drange, route, forward]);
 
-				if ($gameMap.distTo(x, y, dx, dy) >= minRange &&
-				$gameTemp.RangeTable(dx, dy)[0] < 0 &&
-				this.srpgRangeExtention(dx, dy, x, y, skill, range)) {
-					if ($gameTemp.MoveTable(dx, dy)[0] < 0) $gameTemp.pushRangeList([dx, dy, true, x, y]);
-					$gameTemp.setRangeTable(dx, dy, drange, route, x, y);
+				if ($gameMap.distTo(x, y, dx, dy) >= minRange && this.srpgRangeExtention(dx, dy, x, y, skill, range)) {
+					if ($gameTemp.RangeTable(dx, dy)[0] < 0) {
+						$gameTemp.setRangeTable(dx, dy, drange, route);
+						if ($gameTemp.MoveTable(dx, dy)[0] < 0) $gameTemp.pushRangeList([dx, dy, true]);
+					}
+					$gameTemp.addRangeMoveTable(dx, dy, x, y);
 				}
 			}
 		}
@@ -336,7 +337,7 @@
 		return true;
 	}
 
-	// Build the move table more efficiently
+	// Build the move+range table more efficiently
 	Game_System.prototype.srpgMakeMoveTable = function(event) {
 		var user = $gameSystem.EventToUnit(event.eventId())[1];
 		var item = null;
@@ -368,8 +369,25 @@
 	};
 
 	// stores the original position for use in quick targeting and AI
-	Game_Temp.prototype.setRangeTable = function(x, y, move, route, oriX, oriY) {
-		this._RangeTable[x][y] = [move, route, oriX, oriY];
+	Game_Temp.prototype.addRangeMoveTable = function(x, y, oriX, oriY) {
+		this._RangeMoveTable[x][y].push({x: oriX, y: oriY});
+	};
+	Game_Temp.prototype.RangeMoveTable = function(x, y) {
+		return this._RangeMoveTable[x][y];
+	};
+
+	// clear the new table together with the rest
+	var _clearMoveTable = Game_Temp.prototype.clearMoveTable;
+	Game_Temp.prototype.clearMoveTable = function() {
+		_clearMoveTable.call(this);
+		this._RangeMoveTable = [];
+		for (var i = 0; i < $dataMap.width; i++) {
+			var col = [];
+			for (var j = 0; j < $dataMap.height; j++) {
+				col[j] = [];
+			}
+			this._RangeMoveTable[i] = col;
+		}
 	};
 
 	// these functions aren't necessary anymore
