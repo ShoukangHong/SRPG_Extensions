@@ -5382,7 +5382,7 @@ Window_WinLoseCondition.prototype.refresh = function() {
                 $gameSystem.srpgMakeMoveTable(event);
                 var canAttackTargets = this.srpgMakeCanAttackTargets(actor, targetType); //行動対象としうるユニットのリストを作成
                 $gameTemp.clearMoveTable();
-                if ((actor.action(0).isForOpponent() == true && canAttackTargets.length > 0) || actor.hpRate < 1.0) {
+                if ((actor.action(0).isForOpponent() == true && canAttackTargets.length > 0) || actor.hpRate() < 1.0) {
                     actor.setBattleMode('normal');
                 } else {
                     $gameTemp.setActiveEvent(event);
@@ -5447,7 +5447,7 @@ Window_WinLoseCondition.prototype.refresh = function() {
                 $gameSystem.srpgMakeMoveTable(event);
                 var canAttackTargets = this.srpgMakeCanAttackTargets(enemy, targetType); //行動対象としうるユニットのリストを作成
                 $gameTemp.clearMoveTable();
-                if ((enemy.action(0).isForOpponent() == true && canAttackTargets.length > 0) || enemy.hpRate < 1.0) {
+                if ((enemy.action(0).isForOpponent() == true && canAttackTargets.length > 0) || enemy.hpRate() < 1.0) {
                     enemy.setBattleMode('normal');
                 } else {
                     $gameTemp.setActiveEvent(event);
