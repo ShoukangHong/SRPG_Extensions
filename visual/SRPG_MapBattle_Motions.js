@@ -306,8 +306,8 @@
 			var active = $gameTemp.activeEvent();
 			if (active.hasSingleMotion() && !active.motion().idle) return true;
 
-			/*var target = $gameTemp.targetEvent();
-			if (target && target.hasSingleMotion() && !target.motion().idle) return true;*/
+			var target = $gameTemp.targetEvent();
+			if (target && target.hasSingleMotion() && !target.motion().idle) return true;
 		}
 
 		return _waitingForSkill.call(this);
