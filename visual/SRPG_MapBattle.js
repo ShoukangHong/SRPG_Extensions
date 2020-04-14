@@ -204,9 +204,11 @@
 
 		// update map skills
 		if (!this.waitingForSkill() && !this._srpgBattleResultWindow.isChangeExp()) {
-			// process skill effects
+			// process skills
 			if (this.srpgHasMapSkills()) {
-				this.srpgUpdateMapSkill();
+				do {
+					this.srpgUpdateMapSkill();
+				} while (this.srpgHasMapSkills() && !this.waitingForSkill())
 			}
 			// show battle results after it finishes
 			else if (!this._srpgBattleResultWindow.isOpen() && !this._srpgBattleResultWindow.isOpening()) {
@@ -225,6 +227,7 @@
 		}
 	};
 
+	// reset battle mode between skills
 	var _srpgAfterAction = Scene_Map.prototype.srpgAfterAction;
 	Scene_Map.prototype.srpgAfterAction = function() {
 		$gameSystem.clearSRPGBattleMode();
@@ -264,6 +267,25 @@
 		} else if (this.skillWait() > 0) return true;
 
 		return false;
+	};
+
+	// no moving during a skill!
+	var _Game_Player_canMove = Game_Player.prototype.canMove;
+	Game_Player.prototype.canMove = function() {
+		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'invoke_action') {
+			return false;
+		}
+		return _Game_Player_canMove.call(this);
+	};
+
+	// no pausing, either!
+	var _updateCallMenu = Scene_Map.prototype.updateCallMenu;
+	Scene_Map.prototype.updateCallMenu = function() {
+		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'invoke_action') {
+			this.menuCalling = false;
+			return;
+		}
+		_updateCallMenu.call(this);
 	};
 
 //====================================================================
