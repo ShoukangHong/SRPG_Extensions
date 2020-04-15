@@ -31,11 +31,10 @@
  * of javascript.
  *
  * New skill tags:
- * <aiAvoidFriend>      avoids targeting allied units
- * <aiAvoidOpponent>    avoids targeting enemy units
- * <aiIgnoreFriend>     ignores allied units
- * <aiIgnoreOpponent>   ignores enemy units
- * <aiIgnoreAiming>     ignores aimingActor and aimingEvent
+ * <aiIgnoreAiming>     ignores aimingActor and aimingEvent tags
+ * <aiIgnoreTgr>        ignores Target Rate parameter
+ * <aiFriendRate:X>     multiplier for the target score of friends
+ * <aiOpponentRate:X>   multiplier for the target score of opponents
  * <aiTarget: formula>  custom Target Formula for this skill
  * <aiMove: formula>    custom Move Formula when self-targeting this skill
  * 
@@ -61,15 +60,17 @@
  *
  * Target Score is calculated by multiplying the result of the Target Formula by
  * the Target Rate (tgr) stat. If a unit has a target rate of 0% it will be the
- * ignored by allies and enemies alike.
+ * ignored by allies and enemies alike. Putting <aiIgnoreTgr> will ignore Target
+ * Rate for this skill, including a target rate of 0.
  *
  * AoE skills combine the score of all targets in the area, so they usually
  * choose the option that hits the most targets.
  *
- * If you use the <avoidFriends> or <avoidOpponents> notetags on the skill, it
- * will treat those units' scores as negative, while the <ignore_> versions treat
- * their scores as 0. The difference matters for AoE skills that can affect both
- * teams.
+ * If you use the <aiFriendRate> or <aiOpponentRate> notetags on the skill, it
+ * applies an additional multiplier to their target score, on top of Target Rate.
+ * If set to 0, the AI will ignore units of that team as if they had 0 TGR, but
+ * if set to a negative number, the AI will actively avoid hitting them with AoEs.
+ * Larger negative values will avoid allies more urgently.
  * An AoE that hits two opponents and one friend would have the score of
  * opponent A + opponent B - friend A.
  *
@@ -92,9 +93,11 @@
  * region       region ID of the destination space
  * terrain      terrain tag of the destination space
  * tag          (same as terrain)
- * damageFloor  = 1 if the destination space is a damage floor
+ * damageFloor  = 1 if the destination space is a damage floor, = 0 otherwise
  * range        distance from the destination to the target
- * face         'front' 'back' or 'side', which side of the target the skill hits
+ * front        = 1 if the target will be hit from the front, = 0 otherwise
+ * back         = 1 if the target will be hit from the back, = 0 otherwise
+ * side         = 1 if the target will be hit from the side, = 0 otherwise
  *
  * Examples:
  *
@@ -107,8 +110,9 @@
  * <aiTarget: 1-b.hpRate()> chooses the target with the lowest HP %, ignoring
  * anyone who is unhurt. This is especially useful on healing skills
  *
- * <aiTarget: (face == 'back ? 2 : 1)> chooses targets it can hit from behind
- * whenever possible.
+ * <aiTarget: 1 + back> <aiFriendRate:-1> chooses opponents it can hit from the
+ * back, but avoids friends and especially avoids friends it would hit from the
+ * back. This is useful for an AoE that can hit friends and opponents alike.
  *
  * <aiTarget: range> chooses the target it can hit at the furthest range.
  *
@@ -340,15 +344,22 @@
 		if (!event || !user) return false;
 
 		// choose action and target
-		user.makeSrpgActions();
-		$gameSystem.srpgMakeMoveTable(event);
-		$gameTemp.clearAIPos();
-		var target = this.srpgAITarget(user, event, user.action(0));
+		var target = null;
+		while (true) { // dangerous! limit loops to # of skills the user has?
+			user.makeSrpgActions();
+			$gameSystem.srpgMakeMoveTable(event);
+			$gameTemp.clearAIPos();
+			target = this.srpgAITarget(user, event, user.action(0));
+
+			if (!user.currentAction().item() || target) break;
+			$gameTemp.setNoTarget(user.currentAction().item().id);
+		}
+		$gameTemp.clearNoTarget();
 
 		// standing units skip their turn entirely
 		var user = $gameSystem.EventToUnit(event.eventId())[1];
 		if (user.battleMode() === 'stand') {
-			if (target || user.hpRate() < 1.0) {
+			if (user.hpRate() < 1.0 || (target && target.isType() != event.isType())) {
 				user.setBattleMode('normal');
 			} else {
 				$gameTemp.clearMoveTable();
@@ -357,13 +368,48 @@
 			}
 		}
 
-		// decide movement (if not decided by target)
+		// decide movement, if not decided by target
 		if (!$gameTemp.AIPos()) {
 			this.srpgAIPosition(user, event);
 		}
 
 		return true;
 	};
+
+//====================================================================
+// Don't select skills we know have no targets
+//====================================================================
+
+	// initialize the no-target table
+	var _Game_Temp_initialize = Game_Temp.prototype.initialize;
+	Game_Temp.prototype.initialize = function() {
+		_Game_Temp_initialize.call(this);
+		this.clearNoTarget();
+	};
+
+	// check if the skill had no targets before
+	Game_Temp.prototype.noTarget = function(skillId) {
+		return (skillId > 0 && !!this._noTargetList[skillId]);
+	};
+
+	// track that this skill had no targets
+	Game_Temp.prototype.setNoTarget = function(skillId) {
+		if (skillId > 0) this._noTargetList[skillId] = true;
+	};
+
+	// clear the list of skills with no target
+	Game_Temp.prototype.clearNoTarget = function() {
+		this._noTargetList = [];
+	};
+
+	// we've already confirmed there are no valid targets for this skill
+	var _canUse = Game_BattlerBase.prototype.canUse;
+	Game_BattlerBase.prototype.canUse = function(item) {
+		if ($gameSystem.isSRPGMode() && DataManager.isSkill(item) && $gameTemp.noTarget(item.id)) {
+			return false;
+		}
+		return _canUse.call(this, item);
+	}
 
 //====================================================================
 // Target-finding
@@ -373,7 +419,7 @@
 	Scene_Map.prototype.srpgAITarget = function(user, event, action) {
 
 		// no action, no target
-		if (!user || !event || !action) return false;
+		if (!user || !event || !action || !action.item()) return null;
 
 		// self-only targeting
 		if (user.srpgSkillRange(action.item()) <= 0) {
@@ -382,9 +428,9 @@
 				if (action.item().meta.notUseAfterMove) { // can't move, set the position
 					$gameTemp.setAIPos({x: event.posX(), y: event.posY()});
 				}
-				return true;
+				return event;
 			}
-			return false;
+			return null;
 		}
 
 		// notetag to ignore priority targets
@@ -447,7 +493,7 @@
 		// best target
 		$gameTemp.setTargetEvent(bestTarget);
 		$gameTemp.setAIPos(bestPos);
-		return !!bestTarget;
+		return bestTarget;
 	};
 
 	// get the unit's target score
@@ -461,15 +507,16 @@
 
 		// initial scoring
 		var score = unitAry[1].tgr;
+		if (action.item().meta.aiIgnoreAiming) score = 1;
 
 		// invalid or avoided targets
 		if (user.confusionLevel() != 2) {
 			if ((unitAry[1].isActor() == user.isActor()) == (user.confusionLevel() < 3)) {
-				if (!action.isForFriend() || action.ignoreFriend()) score = 0;
-				else if (action.avoidFriend()) score = -score;
+				if (!action.isForFriend()) score = 0;
+				else score *= action.aiFriendRate();
 			} else {
-				if (!action.isForOpponent() || action.ignoreOpponent()) score = 0;
-				else if (action.avoidOpponent()) score = -score;
+				if (!action.isForOpponent()) score = 0;
+				else score *= action.aiOpponentRate();
 			}
 		}
 
@@ -494,7 +541,9 @@
 
 		var range = this.distTo(_x, _y);
 		var distance = $gameTemp.MoveTable(_x, _y)[1].length - 1;
-		var face = this.direction() === _d ? 'front' : this.direction() === 10-_d ? 'back' : 'side';
+		var front = this.direction() == _d ? 1 : 0;
+		var back = this.direction() == 10-_d ? 1 : 0;
+		var side = (!front && !back) ? 1 : 0;
 		var damageFloor = $gameMap.isDamageFloor(_x, _y) ? 1 : 0;
 		var region = $gameMap.regionId(_x, _y) || 0;
 		var terrain = $gameMap.terrainTag(_x, _y) || 0;
@@ -516,18 +565,14 @@
 	};
 
 	// Check if the AI should avoid targeting friends
-	Game_Action.prototype.avoidFriend = function() {
-		return (this.item() && this.item().meta.aiAvoidFriend);
-	};
-	Game_Action.prototype.ignoreFriend = function() {
-		return (this.item() && this.item().meta.aiIgnoreFriend);
+	Game_Action.prototype.aiFriendRate = function() {
+		if (!this.item() || !this.item().meta.aiFriendRate) return 1;
+		else return Number(this.item().meta.aiFriendRate);
 	};
 	// Check if the AI should avoid targeting opponents
-	Game_Action.prototype.avoidOpponent = function() {
-		return (this.item() && this.item().meta.aiAvoidOpponent);
-	};
-	Game_Action.prototype.ignoreOpponent = function() {
-		return (this.item() && this.item().meta.aiIgnoreOpponent);
+	Game_Action.prototype.aiOpponentRate = function() {
+		if (!this.item() || !this.item().meta.aiOpponentRate) return 1;
+		else return Number(this.item().meta.aiOpponentRate);
 	};
 
 
