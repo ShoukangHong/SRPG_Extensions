@@ -412,8 +412,9 @@
 				this._srpgSkillList.unshift(data);
 				this.resetSkillWait();
 
-				// apply damage or start counters
+				// apply damage, or start counters
 				if (user != target && Math.random() < action.itemCnt(target)) {
+					target.performCounter();
 					this.srpgAddCounterAttack(user, target);
 				} else {
 					action.apply(target);
