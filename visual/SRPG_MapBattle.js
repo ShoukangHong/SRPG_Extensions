@@ -73,7 +73,7 @@
  *
  * MapBattle mode is incompatible with SRPG_UncounterableAttack, so the
  * <srpgUncounterable> tag has been directly integrated. Skills and items
- * with this tag will not trigger a counter attack during map battles.
+ * with this tag will not trigger an SRPG counter attack during map battles.
  */
 
 (function(){
@@ -305,12 +305,13 @@
 		else this._srpgSkillList.push(data);
 	};
 
-	// build the counter attack
+	// build the physical counter attack
 	Scene_Map.prototype.srpgAddCounterAttack = function(user, target) {
 		target.srpgMakeNewActions();
 		target.action(0).setSubject(target);
 		target.action(0).setAttack();
 		this.srpgAddMapSkill(target.action(0), target, user, true);
+		this._srpgSkillList[0].counter = true;
 	};
 
 	// check how many skills are left on the queue
@@ -412,8 +413,8 @@
 				this._srpgSkillList.unshift(data);
 				this.resetSkillWait();
 
-				// apply damage, or start counters
-				if (user != target && Math.random() < action.itemCnt(target)) {
+				// apply effects or trigger a counter
+				if (!data.counter && user != target && Math.random() < action.itemCnt(target)) {
 					target.performCounter();
 					this.srpgAddCounterAttack(user, target);
 				} else {
