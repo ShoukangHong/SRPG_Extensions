@@ -118,6 +118,11 @@
  * <srpgMotion:X>         use motion 'X' for the skill / item
  * <useSrpgAttackMotion>  use the character's default attack motion for the skill
  * <srpgCastMotion:X>     use motion 'X' before skill / item executes
+ * 
+ * New script call:
+ * event.playReactMotion('motion') plays the motion with the "reaction" flag, which
+ * stops map skills from waiting on its completion. Good for custom motions as part
+ * of skills or items, beyond the usual damage/evasion.
  */
 
 (function(){
@@ -214,6 +219,21 @@
 // Integrate motions with combat
 //====================================================================
 
+	// adjusted motion for reactions (evade / damaged)
+	Game_CharacterBase.prototype.playReactMotion = function(motion, wait) {
+		var baseMotion = Sprite_Character.MOTIONS[motion.toUpperCase()];
+		if (!baseMotion) return;
+		var reactMotion = {
+			index: baseMotion.index,
+			wait: baseMotion.wait,
+			loop: baseMotion.loop,
+			hold: baseMotion.hold,
+			suffix: baseMotion.suffix,
+			reaction: true
+		};
+		this.playCustomMotion(reactMotion, wait);
+	}
+
 	// get the motion for a basic attack
 	Game_BattlerBase.prototype.mapAttackMotion = function() {
 		return _default.attack;
@@ -251,6 +271,8 @@
 				else if (action.isPhysical()) event.playMotion(_default.physical);
 				else if (action.isMagical()) event.playMotion(_default.magical);
 				else if (action.isCertainHit()) event.playMotion(_default.certain);
+			} else if (data.phase === 'end') {
+				event.clearMotion();
 			}
 		}
 		_srpgInvokeMapSkill.call(this, data);
@@ -266,8 +288,8 @@
 
 		var event = this.event();
 		if (event && !this.noMotions()) {
-			if (result.isHit() && result.hpDamage > 0) event.playMotion(_default.damage);
-			else if (result.missed || result.evaded) event.playMotion(_default.evade);
+			if (result.isHit() && result.hpDamage > 0) event.playReactMotion(_default.damage);
+			else if (result.missed || result.evaded) event.playReactMotion(_default.evade);
 		}
 
 		if (_shake && result.hpDamage > 0) {
@@ -304,10 +326,14 @@
 	Scene_Map.prototype.waitingForSkill = function() {
 		if (this.skillAnimWait()) {
 			var active = $gameTemp.activeEvent();
-			if (active.hasSingleMotion() && !active.motion().idle) return true;
+			if (active.hasSingleMotion() && !active.motion().idle && !active.motion().reaction) {
+				return true;
+			}
 
 			var target = $gameTemp.targetEvent();
-			if (target && target.hasSingleMotion() && !target.motion().idle) return true;
+			if (target && target.hasSingleMotion() && !target.motion().idle && !target.motion().reaction){
+				return true;
+			}
 		}
 
 		return _waitingForSkill.call(this);

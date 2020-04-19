@@ -5,7 +5,7 @@
 //=============================================================================
 
 /*:
- * @plugindesc SRPG show skills on the map (v0.99)
+ * @plugindesc SRPG show skills on the map (v1.0)
  * @author Dr. Q
  *
  * @param Use Map Battle
@@ -42,7 +42,7 @@
  * to manipulate it (movement, change appearance, etc).
  *
  * /!\ IMPORTANT /!\
- * Some plugins and mechanics will work differently between the Map Battle and
+ * Some plugins and mechanics can work differently between the Map Battle and
  * normal battles, especially if you use action sequences. Anything that can be
  * used in both, such as counter attacks, should be thoroughly tested to ensure
  * its works the same.
@@ -66,9 +66,6 @@
  * Animation 21 when facing left
  * Animation 22 when facing right
  * Animation 23 when facing up
- *
- * Features not yet supported in map battle:
- * - "Counter Attack" trait (SRPG counters are supported)
  *
  * Known incompatible plugins with map battle:
  * - SRPG_AgiAttackPlus
@@ -146,6 +143,10 @@
 		var action = user.action(0);
 		var reaction = null;
 
+		// prepare action timing
+		user.setActionTiming(0);
+		if (user != target) target.setActionTiming(1);
+
 		// check if we're using map battle on this skill
 		if (action && action.item()) {
 			var mapBattleTag = action.item().meta.mapBattle;
@@ -175,13 +176,11 @@
 		BattleManager.setup(_srpgTroopID, false, true);
 		action.setSubject(user);
 
-		// queue up attack
-		user.setActionTiming(0);
+		// queue the action
 		this.srpgAddMapSkill(action, user, target);
 
 		// queue up counterattack
 		if (userArray[0] !== targetArray[0] && target.canMove() && !action.item().meta.srpgUncounterable) {
-			target.setActionTiming(1);
 			target.srpgMakeNewActions();
 			reaction = target.action(0);
 			reaction.setSubject(target);
@@ -306,6 +305,14 @@
 		else this._srpgSkillList.push(data);
 	};
 
+	// build the counter attack
+	Scene_Map.prototype.srpgAddCounterAttack = function(user, target) {
+		target.srpgMakeNewActions();
+		target.action(0).setSubject(target);
+		target.action(0).setAttack();
+		this.srpgAddMapSkill(target.action(0), target, user, true);
+	};
+
 	// check how many skills are left on the queue
 	Scene_Map.prototype.srpgHasMapSkills = function() {
 		this._srpgSkillList = this._srpgSkillList || [];
@@ -336,7 +343,7 @@
 			// skill cost and casting animations
 			case 'start':
 				if (!user.canMove() || !user.canUse(action.item())) {
-					data.phase = 'end';
+					data.phase = 'cancel';
 					this._srpgSkillList.unshift(data);
 					break;
 				}
@@ -395,9 +402,8 @@
 
 			// apply skill effects
 			case 'effect':
-				action.apply(target);
-				data.count--;
 				// skill effect repeats
+				data.count--;
 				if (data.count > 0) {
 					data.phase = 'animation';
 				} else {
@@ -405,6 +411,13 @@
 				}
 				this._srpgSkillList.unshift(data);
 				this.resetSkillWait();
+
+				// apply damage or start counters
+				if (user != target && Math.random() < action.itemCnt(target)) {
+					this.srpgAddCounterAttack(user, target);
+				} else {
+					action.apply(target);
+				}
 				break;
 
 			// run the common events and such
@@ -414,7 +427,8 @@
 				this._srpgSkillList.unshift(data);
 				break;
 
-			// clean up
+			// clean up at the end
+			case 'cancel':
 			case 'end':
 				user.setLastTarget(target);
 				user.removeCurrentAction();
