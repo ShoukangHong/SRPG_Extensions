@@ -297,10 +297,13 @@
 		if (!$gamePlayer.isStopping()) return;
 
 		// path to destination
-		var route = $gameTemp.MoveTable(pos.x, pos.y)[1];
-		if (route) {
-			$gameSystem.setSrpgWaitMoving(true);
-			$gameTemp.activeEvent().srpgMoveRouteForce(route);
+		var pos = $gameTemp.AIPos();
+		if (pos) {
+			var route = $gameTemp.MoveTable(pos.x, pos.y)[1];
+			if (route) {
+				$gameSystem.setSrpgWaitMoving(true);
+				$gameTemp.activeEvent().srpgMoveRouteForce(route);
+			}
 		}
 		$gameSystem.setSubBattlePhase('auto_actor_action');
 	};
@@ -370,7 +373,7 @@
 
 		// decide movement, if not decided by target
 		if (!$gameTemp.AIPos()) {
-			this.srpgAIPosition(user, event);
+			this.srpgAIPosition(user, event, user.action(0));
 		}
 
 		return true;
@@ -490,28 +493,32 @@
 			}
 		});
 
-		// best target
+		// set the optimal target and position
 		$gameTemp.setTargetEvent(bestTarget);
-		$gameTemp.setAIPos(bestPos);
+		if (bestTarget != event || action.item().meta.notUseAfterMove) {
+			$gameTemp.setAIPos(bestPos);
+		} else {
+			$gameTemp.clearAIPos(); // self-target can go wherever
+		}
 		return bestTarget;
 	};
 
 	// get the unit's target score
 	Game_CharacterBase.prototype.targetScore = function(user, action, pos) {
 		if (this.isErased()) return 0;
-		var unitAry = $gameSystem.EventToUnit(this.eventId());
-		if (!unitAry) return 0;
+		var targetAry = $gameSystem.EventToUnit(this.eventId());
+		if (!targetAry) return 0;
 
 		// ignored by AI
-		if (unitAry[1].priorityTag('aiIgnore')) return 0;
+		if (targetAry[1].priorityTag('aiIgnore')) return 0;
 
 		// initial scoring
-		var score = unitAry[1].tgr;
+		var score = targetAry[1].tgr;
 		if (action.item().meta.aiIgnoreAiming) score = 1;
 
 		// invalid or avoided targets
 		if (user.confusionLevel() != 2) {
-			if ((unitAry[1].isActor() == user.isActor()) == (user.confusionLevel() < 3)) {
+			if ((targetAry[1].isActor() == user.isActor()) == (user.confusionLevel() < 3)) {
 				if (!action.isForFriend()) score = 0;
 				else score *= action.aiFriendRate();
 			} else {
@@ -520,13 +527,13 @@
 			}
 		}
 
-		// don't bother evaluating the rest
+		// it's already 0, it can't be anything else
 		if (score == 0) return 0;
 
 		// stats and switches
 		var s = $gameSwitches._data;
 		var v = $gameVariables._data;
-		var target = unitAry[1];
+		var target = targetAry[1];
 		var a = user;
 		var b = target;
 		var item = action.item();
@@ -581,12 +588,12 @@
 //====================================================================
 
 	// find the optimal position without a target
-	Scene_Map.prototype.srpgAIPosition = function(user, event) {
+	Scene_Map.prototype.srpgAIPosition = function(user, event, action) {
 		var bestX = event.posX();
 		var bestY = event.posY();
-		var bestScore = event.positionScore(event.posX(), event.posY(), user);
+		var bestScore = event.positionScore(event.posX(), event.posY(), user, action);
 
-		// notetag to ignore priority targets
+		// ignore priority targets
 		if (user.confusionLevel() > 0) {
 			$gameTemp.setSrpgPriorityTarget(null);
 		} else {
@@ -597,7 +604,7 @@
 			if (pos[2] == 1) return; // ignore range entries if found
 			var x = pos[0];
 			var y = pos[1];
-			var score = event.positionScore(x, y, user);
+			var score = event.positionScore(x, y, user, action);
 
 			if (score > bestScore) {
 				bestX = x;
@@ -609,7 +616,7 @@
 	};
 
 	// determine the strategic value of a position on the map
-	Game_CharacterBase.prototype.positionScore = function(x, y, user) {
+	Game_CharacterBase.prototype.positionScore = function(x, y, user, action) {
 		var event = this;
 		var _confusion = user.confusionLevel();
 
@@ -671,8 +678,8 @@
 		var tag = terrain;
 
 		// self-target skill move formula
-		if (this == $gameTemp.targetEvent() && user.action(0) && user.action(0).item().meta.aiMove) {
-			return eval(user.action(0).item().meta.aiMove);
+		if (this == $gameTemp.targetEvent() && action.item() && action.item().meta.aiMove) {
+			return eval(action.item().meta.aiMove);
 		}
 
 		// standard AI modes (TODO: This still needs some work?)
