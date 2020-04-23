@@ -299,6 +299,7 @@
 		if (minRange <= 0 && $gameTemp.RangeTable(x, y)[0] < 0) {
 			if ($gameTemp.MoveTable(x, y)[0] < 0) $gameTemp.pushRangeList([x, y, true]);
 			$gameTemp.setRangeTable(x, y, range, [0]);
+			$gameTemp.addRangeMoveTable(x, y, x, y);
 		}
 		$gameMap.makeSrpgLoSTable(this);
 
