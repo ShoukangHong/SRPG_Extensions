@@ -189,18 +189,23 @@
 
 	// (utility) find the direction to a fixed point, discounting obstacles
 	Game_Character.prototype.dirTo = function(x, y) {
+		return $gameMap.dirBetween(this.posX(), this.posY(), x, y);
+	};
+
+	// (utility) find the direction from one point to another, discounting obstacles
+	Game_Map.prototype.dirBetween = function(x1, y1, x2, y2) {
 		var dir = 5;
-		var dx = this.posX() - x;
-		var dy = this.posY() - y;
+		var dx = x1 - x2;
+		var dy = y1 - y2;
 
 		// account for looping maps
-		if ($gameMap.isLoopHorizontal()) {
-			if (dx > $gameMap.width() / 2) dx -= $gameMap.width();
-			if (dx < -$gameMap.width() / 2) dx += $gameMap.width();
+		if (this.isLoopHorizontal()) {
+			if (dx > this.width() / 2) dx -= this.width();
+			if (dx < -this.width() / 2) dx += this.width();
 		}
-		if ($gameMap.isLoopVertical()) {
-			if (dy > $gameMap.height() / 2) dy -= $gameMap.height();
-			if (dy < -$gameMap.height() / 2) dy += $gameMap.height();
+		if (this.isLoopVertical()) {
+			if (dy > this.height() / 2) dy -= this.height();
+			if (dy < -this.height() / 2) dy += this.height();
 		}
 
 		if (Math.abs(dx) > Math.abs(dy)) {
@@ -227,16 +232,26 @@
 // Store target position for AI movement
 //====================================================================
 
+	// movement target
 	Game_Temp.prototype.setAIPos = function(pos) {
 		this._aiPos = pos;
 	};
-
 	Game_Temp.prototype.clearAIPos = function() {
 		this._aiPos = null;
 	};
-
 	Game_Temp.prototype.AIPos = function() {
 		return this._aiPos || null;
+	};
+
+	// cell target (AoE, etc)
+	Game_Temp.prototype.setAITargetPos = function(pos) {
+		this._aiTargetPos = pos;
+	};
+	Game_Temp.prototype.clearAITargetPos = function() {
+		this._aiTargetPos = null;
+	};
+	Game_Temp.prototype.AITargetPos = function() {
+		return this._aiTargetPos || null;
 	};
 
 //====================================================================
@@ -317,6 +332,28 @@
 	};
 
 
+	// handle cell targeting
+	var _srpgInvokeAutoUnitAction = Scene_Map.prototype.srpgInvokeAutoUnitAction;
+	Scene_Map.prototype.srpgInvokeAutoUnitAction = function() {
+		// set up AoE around the target position
+		var pos = $gameTemp.AITargetPos();
+		if (pos) {
+			$gameTemp.showArea(pos.x, pos.y);
+		}
+
+		// invoke the skill as normal
+		_srpgInvokeAutoUnitAction.call(this);
+
+		// correctly move the cursor to target position
+		if (pos) {
+			$gameTemp.setAutoMoveDestinationValid(true);
+			$gameTemp.setAutoMoveDestination(pos.x, pos.y);
+		}
+
+		// clear the target position, just to be sure
+		$gameTemp.clearAITargetPos();
+	};
+
 //====================================================================
 // Primary AI logic
 //====================================================================
@@ -352,10 +389,12 @@
 			user.makeSrpgActions();
 			$gameSystem.srpgMakeMoveTable(event);
 			$gameTemp.clearAIPos();
+			$gameTemp.clearAITargetPos();
 			target = this.srpgAITarget(user, event, user.action(0));
 
-			if (!user.currentAction().item() || target) break;
-			$gameTemp.setNoTarget(user.currentAction().item().id);
+			var item = user.currentAction().item();
+			if (target || !item || $gameTemp.noTarget(item.id) break;
+			$gameTemp.setNoTarget(item.id);
 		}
 		$gameTemp.clearNoTarget();
 
@@ -424,8 +463,11 @@
 		// no action, no target
 		if (!user || !event || !action || !action.item()) return null;
 
-		// self-only targeting
-		if (user.srpgSkillRange(action.item()) <= 0) {
+		// track whether this is an AoE effect or not
+		var isAoE = (action.area && action.area() > 0);
+
+		// skills that can only affect yourself
+		if (user.srpgSkillRange(action.item()) <= 0 && !isAoE) {
 			if (action.isForFriend()) {
 				$gameTemp.setTargetEvent(event);
 				if (action.item().meta.notUseAfterMove) { // can't move, set the position
@@ -446,9 +488,13 @@
 		var bestScore = 0;
 		var bestPriority = false;
 		var bestTarget = null;
+		var bestTargetPos = null;
 		var bestPos = null;
-		$gameMap.events().forEach(function(target) {
-			if (target && $gameTemp.RangeTable(target.posX(), target.posY())[0] >= 0) {
+
+		if (!isAoE) { // targeting a single unit
+			$gameMap.events().forEach(function(target) {
+				if (!target) return;
+
 				var posList = $gameTemp.RangeMoveTable(target.posX(), target.posY());
 				for (var i = 0; i < posList.length; i++) {
 					var pos = posList[i];
@@ -460,42 +506,72 @@
 						priority = true;
 					}
 
-					// evaluate AoEs
-					if (!isNaN(score) && action.area && action.area() > 0) {
-						var x = target.posX();
-						var y = target.posY();
-						var r = action.area();
-						var t = action.areaType();
-						var d = target.dirTo(pos.x, pos.y);
-						score = $gameMap.events().reduce(function(value, areaTarget) {
-							if (areaTarget && areaTarget != target && areaTarget.inArea(x, y, r, t, d)) {
-								var bonus = areaTarget.targetScore(user, action, pos);
-								if (!isNaN(bonus)) {
-									value += bonus;
-									if (bonus > 0 && areaTarget == $gameTemp.isSrpgPriorityTarget()) {
-										priority = true;
-									}
-								}
-							}
-							return value;
-						}, score);
-					}
-
 					// pick the best target
-					if ((priority && !bestPriority) ||
-					(score > bestScore && priority == bestPriority)) {
+					if ((priority && !bestPriority) || (score > bestScore && priority == bestPriority)) {
 						bestScore = score;
 						bestPriority = priority;
 						bestTarget = target;
 						bestPos = pos;
 					}
 				}
-			}
-		});
+			});
+		} else { // targeting an AoE effect
+			$gameTemp.moveList().forEach(function (targetPos) {
+				if (!targetPos) return;
+				var x = targetPos[0];
+				var y = targetPos[1];
 
+				var posList = $gameTemp.RangeMoveTable(x, y);
+				for (var i = 0; i < posList.length; i++) {
+					var pos = posList[i];
+					var r = action.area();
+					var t = action.areaType();
+					var d = $gameMap.dirBetween(pos.x, pos.y, x, y);
+					var priority = false;
+
+					var score = $gameMap.events().reduce(function(value, target) {
+						if (target && target != event && target.inArea(x, y, r, t, d)) {
+							var bonus = target.targetScore(user, action, pos);
+							if (!isNaN(bonus)) {
+								value += bonus;
+								if (bonus > 0 && target == $gameTemp.isSrpgPriorityTarget()) {
+									priority = true;
+								}
+							}
+						}
+						return value;
+					}, 0);
+
+					// check if the user is in the AoE
+					if ($gameMap.inArea(pos.x - x, pos.y - y, r, t, d)) {
+						var bonus = event.targetScore(user, action, pos);
+						if (!isNaN(bonus)) {
+							score += bonus;
+						}
+					}
+
+					// pick the best target position
+					if ((priority && !bestPriority) || (score > bestScore && priority == bestPriority)) {
+						bestScore = score;
+						bestPriority = priority;
+						bestTargetPos = {x: targetPos[0], y: targetPos[1]};
+						bestPos = pos;
+					}
+				}
+			});
+		}
+
+		// set up AoE targets
+		if (bestTargetPos) {
+			$gameTemp.showArea(bestTargetPos.x, bestTargetPos.y);
+			$gameTemp.setAITargetPos(bestTargetPos);
+			$gameTemp.selectArea(user, action);
+			bestTarget = $gameTemp.areaTargets().shift().event;
+			$gameTemp.clearArea();
+		}
 		// set the optimal target and position
 		$gameTemp.setTargetEvent(bestTarget);
-		if (bestTarget != event || action.item().meta.notUseAfterMove) {
+		if (bestTarget != event || isAoE || action.item().meta.notUseAfterMove) {
 			$gameTemp.setAIPos(bestPos);
 		} else {
 			$gameTemp.clearAIPos(); // self-target can go wherever
@@ -508,17 +584,18 @@
 		if (this.isErased()) return 0;
 		var targetAry = $gameSystem.EventToUnit(this.eventId());
 		if (!targetAry) return 0;
+		var target = targetAry[1];
 
-		// ignored by AI
-		if (targetAry[1].priorityTag('aiIgnore')) return 0;
+		// ignored by other AI
+		if (target.priorityTag('aiIgnore') && target != user) return 0;
 
 		// initial scoring
-		var score = targetAry[1].tgr;
+		var score = target.tgr;
 		if (action.item().meta.aiIgnoreAiming) score = 1;
 
 		// invalid or avoided targets
 		if (user.confusionLevel() != 2) {
-			if ((targetAry[1].isActor() == user.isActor()) == (user.confusionLevel() < 3)) {
+			if ((target.isActor() == user.isActor()) == (user.confusionLevel() < 3)) {
 				if (!action.isForFriend()) score = 0;
 				else score *= action.aiFriendRate();
 			} else {
@@ -533,7 +610,6 @@
 		// stats and switches
 		var s = $gameSwitches._data;
 		var v = $gameVariables._data;
-		var target = targetAry[1];
 		var a = user;
 		var b = target;
 		var item = action.item();
@@ -544,9 +620,9 @@
 		// positional values
 		var _x = pos.x;
 		var _y = pos.y;
-		var _d = this.dirTo(_x, _y);
+		var _d = (target != user) ? this.dirTo(_x, _y) : this.direction();
 
-		var range = this.distTo(_x, _y);
+		var range = (target != user) ? this.distTo(_x, _y) : 0;
 		var distance = $gameTemp.MoveTable(_x, _y)[1].length - 1;
 		var front = this.direction() == _d ? 1 : 0;
 		var back = this.direction() == 10-_d ? 1 : 0;
