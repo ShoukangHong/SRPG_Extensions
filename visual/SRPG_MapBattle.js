@@ -114,7 +114,6 @@
 // process attacks directly on the map scene
 //====================================================================
 
-
 	// force a specific style of battle for one exchange
 	Game_System.prototype.forceSRPGBattleMode = function(type) {
 		this._battleMode = type;
@@ -204,24 +203,23 @@
 		// update map skills
 		if (!this.waitingForSkill() && !this._srpgBattleResultWindow.isChangeExp()) {
 			// process skills
-			if (this.srpgHasMapSkills()) {
-				do {
-					this.srpgUpdateMapSkill();
-				} while (this.srpgHasMapSkills() && !this.waitingForSkill())
+			while (this.srpgHasMapSkills() && !this.waitingForSkill()) {
+				this.srpgUpdateMapSkill();
 			}
-			// show battle results after it finishes
-			else if (!this._srpgBattleResultWindow.isOpen() && !this._srpgBattleResultWindow.isOpening()) {
+
+			// process the battle results window
+			if (!this.srpgHasMapSkills() && !this._srpgBattleResultWindow.isOpen() &&
+			!this._srpgBattleResultWindow.isOpening()) {
 				var showResults = this.processSrpgVictory();
 				if (!showResults) $gameSystem.setSubBattlePhase('after_battle');
-			}
-			// press any key to close the result window
-			else if (this._srpgBattleResultWindow.isOpen() &&
-			(Input.isPressed('ok') || Input.isPressed('cancel') || TouchInput.isPressed() || TouchInput.isCancelled())) {
+			} else if (this._srpgBattleResultWindow.isOpen() &&
+			(Input.isPressed('ok') || Input.isPressed('cancel') ||
+			TouchInput.isPressed() || TouchInput.isCancelled())) {
 				this._srpgBattleResultWindow.close();
 				$gameSystem.setSubBattlePhase('after_battle');
 			}
 		} else {
-			// handles time-based waiting
+			// time-based waiting
 			this.updateSkillWait();
 		}
 	};
@@ -254,7 +252,8 @@
 	Scene_Map.prototype.waitingForSkill = function() {
 		if ($gameTemp.isCommonEventReserved()) return true;
 
-		if ($gamePlayer.isAnimationPlaying() || !$gamePlayer.isStopping()) return true;
+		if ($gamePlayer.isAnimationPlaying() || !$gamePlayer.isStopping() ||
+		$gameTemp.isAutoMoveDestinationValid()) return true;
 
 		if (this.skillAnimWait()) {
 			var active = $gameTemp.activeEvent();
