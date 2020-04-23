@@ -387,7 +387,7 @@
 				$gameTemp.showArea(x, y);
 			} else if ($gameSystem.isSubBattlePhase() !== 'invoke_action' &&
 			$gameSystem.isSubBattlePhase() !== 'battle_window') {
-				$gameTemp.clearAoE();
+				$gameTemp.clearArea();
 			}
 		}
 		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_target' && $gameTemp.isSkillAoE()) {
@@ -412,7 +412,7 @@
 	Scene_Map.prototype.updateCallMenu = function() {
 		if ($gameSystem.isSRPGMode() && $gameSystem.isSubBattlePhase() === 'actor_target' &&
 		(Input.isTriggered('cancel') || TouchInput.isCancelled())) {
-			$gameTemp.clearAoE();
+			$gameTemp.clearArea();
 		}
 		_updateCallMenu.call(this);
 	};
@@ -448,7 +448,7 @@
 	};
 
 	// clear out the highlighted area
-	Game_Temp.prototype.clearAoE = function() {
+	Game_Temp.prototype.clearArea = function() {
 		this._activeAoE = null;
 	};
 
@@ -490,13 +490,16 @@
 	// Apply AoEs for auto units as well
 	var _srpgInvokeAutoUnitAction = Scene_Map.prototype.srpgInvokeAutoUnitAction;
 	Scene_Map.prototype.srpgInvokeAutoUnitAction = function() {
-		var mainTarget = $gameTemp.targetEvent();
-		if (mainTarget && $gameSystem.positionInRange(mainTarget.posX(), mainTarget.posY())) {
-			var userArray = $gameSystem.EventToUnit($gameTemp.activeEvent().eventId());
-			var skill = userArray[1].currentAction();
-			if (skill.area() > 0) {
-				$gameTemp.showArea(mainTarget.posX(), mainTarget.posY());
-				$gameTemp.selectArea(userArray[1], skill, mainTarget);
+		// set up the AoE if it hasn't already been prepared
+		if (!$gameTemp._activeAoE) {
+			var mainTarget = $gameTemp.targetEvent();
+			if (mainTarget && $gameSystem.positionInRange(mainTarget.posX(), mainTarget.posY())) {
+				var userArray = $gameSystem.EventToUnit($gameTemp.activeEvent().eventId());
+				var skill = userArray[1].currentAction();
+				if (skill.area() > 0) {
+					$gameTemp.showArea(mainTarget.posX(), mainTarget.posY());
+					$gameTemp.selectArea(userArray[1], skill, mainTarget);
+				}
 			}
 		}
 		_srpgInvokeAutoUnitAction.call(this);
@@ -556,7 +559,7 @@
 			$gameSystem.setSubBattlePhase('invoke_action');
 			this.srpgBattleStart(actionArray, targetArray);
 		} else {
-			$gameTemp.clearAoE();
+			$gameTemp.clearArea();
 			$gameTemp.setShouldPayCost(true);
 			_srpgAfterAction.call(this);
 		}
@@ -647,7 +650,7 @@
 		bitmap.fillRect(x, y, tileWidth, tileHeight, _areaColor);
 	};
 
-	Sprite_SrpgAoE.prototype.clearAoE = function() {
+	Sprite_SrpgAoE.prototype.clearArea = function() {
 		this._posX = -1;
 		this._posY = -1;
 	};
@@ -691,7 +694,7 @@
 		if (aoe) {
 			this._srpgAoE.setAoE(aoe.x, aoe.y, aoe.size, aoe.shape, aoe.dir);
 		} else {
-			this._srpgAoE.clearAoE();
+			this._srpgAoE.clearArea();
 		}
 	};
 
