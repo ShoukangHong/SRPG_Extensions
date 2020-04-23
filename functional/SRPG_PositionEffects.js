@@ -140,13 +140,6 @@
 
 	// (utility) check if a position is open
 	Game_Map.prototype.positionIsOpen = function(x, y) {
-		/*var empty = true;
-		this.eventsXy(x, y).forEach(function(event) {
-			if (!event.isErased() && event.isType() && event.isType() !== 'unitEvent') {
-				empty = false;
-			}
-		});
-		return empty;*/
 		return this.events().every(function(event) {
 			if (event.isErased() || !event.pos(x, y)) return true;
 			if (!event.isType() || event.isType() === 'unitEvent') return true;
