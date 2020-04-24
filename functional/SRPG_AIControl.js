@@ -393,7 +393,7 @@
 			target = this.srpgAITarget(user, event, user.action(0));
 
 			var item = user.currentAction().item();
-			if (target || !item || $gameTemp.noTarget(item.id) break;
+			if (target || !item || $gameTemp.noTarget(item.id)) break;
 			$gameTemp.setNoTarget(item.id);
 		}
 		$gameTemp.clearNoTarget();
