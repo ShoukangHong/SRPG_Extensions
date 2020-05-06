@@ -28,9 +28,20 @@
  * @off Don't move
  * @default false
  * 
+ * @param Force AoE Completion
+ * @desc If true, the AoE will continue even if
+ * the user is disabled during execution
+ * @type boolean
+ * @default true
+ *
+ * TODO: Figure out the best way to handle the AoE completion thing?
+ *
  * @help
  * Allows you to define an area of effect for attacks
  * Based on SRPG_AreaAttack.js by アンチョビ
+ *
+ * Note: SRPG_AreaAttack and SRPG_AoE define many of the same features in
+ * different ways, and are incompatible if you try to use both.
  * 
  * When using an AoE skill, you can target an empty cell as long as there is at
  * least one valid target within the area
@@ -137,12 +148,13 @@
 	var _oneSquare = !!eval(parameters['Show One Square AoE']);
 	var _areaColor = parameters['AoE Color'];
 	var _refocus = !!eval(parameters['Refocus Camera']);
+	var _forceComplete = !!eval(parameters['Force AoE Completion']);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _srpgPredictionWindowMode = Number(coreParameters['srpgPredictionWindowMode'] || 1);
 
 //====================================================================
-// Function names from SRPG_AreaAttack.js, for compativility
+// Compatibility with plugins expecting SRPG_AreaAttack.js
 //====================================================================
 
 	Game_Temp.prototype.isFirstAction = function() {
@@ -262,17 +274,17 @@
 		return this._areaTargets;
 	};
 
-	// when repeating actions, the cost is only paid once
+	// when repeating actions, the cost/item is only paid once
 	Game_Temp.prototype.setShouldPayCost = function(flag) {
 		this._shouldPaySkillCost = flag;
 	};
 	Game_Temp.prototype.shouldPayCost = function() {
 		return this._shouldPaySkillCost;
 	};
-	var _paySkillCost = Game_BattlerBase.prototype.paySkillCost;
-	Game_BattlerBase.prototype.paySkillCost = function(skill) {
+	var _useItem = Game_BattlerBase.prototype.useItem;
+	Game_BattlerBase.prototype.useItem = function(skill) {
 		if (!$gameSystem.isSRPGMode() || $gameTemp.shouldPayCost()) {
-			_paySkillCost.call(this, skill);
+			_useItem.call(this, skill);
 		}
 	};
 
