@@ -13,28 +13,21 @@
  * https://www.w3schools.com/cssref/css_colors.asp
  * @type string
  * @default DarkOrange
- * 
+ *
  * @param Show One Square AoE
  * @desc Show AoE indicator for single target effects?
  * @type boolean
  * @on Show
  * @off Hide
  * @default false
- * 
+ *
  * @param Refocus Camera
  * @desc Move the camera to each target as it's hit
  * @type boolean
  * @on Move
  * @off Don't move
  * @default false
- * 
- * @param Force AoE Completion
- * @desc If true, the AoE will continue even if
- * the user is disabled during execution
- * @type boolean
- * @default true
  *
- * TODO: Figure out the best way to handle the AoE completion thing?
  *
  * @help
  * Allows you to define an area of effect for attacks
@@ -148,7 +141,6 @@
 	var _oneSquare = !!eval(parameters['Show One Square AoE']);
 	var _areaColor = parameters['AoE Color'];
 	var _refocus = !!eval(parameters['Refocus Camera']);
-	var _forceComplete = !!eval(parameters['Force AoE Completion']);
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _srpgPredictionWindowMode = Number(coreParameters['srpgPredictionWindowMode'] || 1);
