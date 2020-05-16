@@ -257,8 +257,9 @@
  *                      # when set 0, this skill targets user(set range 'user').
  *                      # when set -1, 'weaponRange' on weapon or enemy's note set to this attack range.
  *   <srpgMinRange:X>   # set attack minimum range X.
- *   <specialRange:X>   # specialize the shape of the range (eg <specialRange: queen>).
- *                      # queen: 8 directions, luke: straight, bishop: diagonal, knight: other than 8 directions
+ *   <specialRange:X>   # specialize the shape of the range (eg <specialRange:queen>).
+ *                      # queen: 8 directions, luke: straight, bishop: diagonal, knight: other than 8 directions,
+ *                      # king: square
  *   <addActionTimes: X># Increases the number of actions by X when the skill is used. If set to 1, the skill can re-act after the action.
  *                      # It is recommended to combine with <notUseAfterMove> below because unit can move many times.
  *   <notUseAfterMove>  # The skill cannot be used after moving.
@@ -325,6 +326,7 @@
  * - fixed the name of the 'rook' special range, but 'luke' still works if you want
  * - added parameters for the previously unchangable text, sounds, and sprites
  * - updated to support the fancy MV plugin parameters, for easier configuration
+ * - never turn around when targeting yourself
  *
  */
 
@@ -5907,6 +5909,7 @@ Window_WinLoseCondition.prototype.refresh = function() {
             var disY = event1Y - $gameTemp.targetEvent().posY();
             differenceY = Math.abs(differenceY) < Math.abs(disY) ? differenceY : disY;
         }
+        if (differenceX == 0 && differenceY == 0) return;
         if (Math.abs(differenceX) > Math.abs(differenceY)) {
             if (differenceX > 0) {
                 $gameTemp.activeEvent().setDirection(4);
