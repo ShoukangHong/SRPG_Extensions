@@ -141,10 +141,12 @@
 	// (utility) check if a position is open
 	Game_Map.prototype.positionIsOpen = function(x, y) {
 		return this.events().every(function(event) {
-			if (event.isErased() || !event.pos(x, y)) return true;
-			if (!event.isType() || event.isType() === 'unitEvent') return true;
-			if (event.isType() === 'object' && event.characterName() === '') return true;
-			return false;
+			if (event.isErased() || !event.pos(x, y) || !event.isType()) return true;
+			if (event.isType() === 'actor') return false;
+			if (event.isType() === 'enemy') return false;
+			if (event.isType() === 'object' && event.characterName() !== '') return false;
+			if (event.isType() === 'playerEvent') return false;
+			return true;
 		});
 	};
 
