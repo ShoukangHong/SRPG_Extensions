@@ -41,13 +41,25 @@
  * AI units won't make use of this, and will always try to target a unit
  * directly, catching other targets by coincidence
  * 
+ * By default, AI units are not allowed to use AoE effects with a minimum range
+ * of 1 or more because they don't understand how to aim them, but other
+ * plugins that improve the AI can include the following line to reenable them:
+ * Game_System.prototype.srpgAIUnderstandsAoE = true;
+ * 
  * Skill / item notetags:
  * <srpgAreaRange:x>    creates an AoE of size x
+ * <srpgAreaMinRange:x> adjusts the minimum AoE size, creating a hole
+ * <srpgAreaTargets:x>  set the maximum number of targets the skill can hit
  * <srpgAreaType:y>     changes the shape of the AoE
- * type defaults to 'circle' if not specified
+ *   type defaults to 'circle' if not specified
+ *
+ * <srpgAreaOrder:near> select targets from nearest to furthest (default)
+ * <srpgAreaOrder:far>  select targets from furthest to nearets
+ * <srpgAreaOrder:random> select targets randomly within the AoE
  *
  *
- * The following shapes are available, shown at a size of 2.
+ * The following shapes are available, shown at a size of 2, min size of 0
+ * The number shows what distance it is at
  *
  * circle: hits a circle around the target cell
  *      2
@@ -124,11 +136,24 @@
  *    1   1
  *  2       2
  *
+ * star - hits a + and an x shape around the target cell
+ *  2   2   2
+ *    1 1 1
+ *  2 1 0 1 2
+ *    1 1 1
+ *  2   2   2
+ *
+ * checker - hits every other cell in a square
+ *  2   2   2
+ *    1   1
+ *  2   0   2
+ *    1   1
+ *  2   2   2
  *
  * Script calls for advanced users:
- *  yourEvent.battlersNear(size, 'shape', [direction])
- *  yourEvent.enemiesNear(size, 'shape', [direction])
- *  yourEvent.actorsNear(size, 'shape', [direction])
+ *  yourEvent.battlersNear(size, minSize, 'shape', [direction])
+ *  yourEvent.enemiesNear(size, minSize, 'shape', [direction])
+ *  yourEvent.actorsNear(size, minSize, 'shape', [direction])
  *
  * Returns a list of actors/enemies/both near the specified event, supporting
  * the same AoE shapes listed above. If you use a directional AoE shape and no
@@ -150,7 +175,10 @@
 //====================================================================
 
 	Game_Temp.prototype.isFirstAction = function() {
-		return this.shouldPayCost();
+		return !!(this.shouldPayCost());
+	};
+	Game_Temp.prototype.isLastAction = function() {
+		return !!(this.areaTargets().length < 1);
 	};
 	Game_BattlerBase.prototype.srpgSkillAreaRange = function(item) {
 		return Number(item.meta.srpgAreaRange);
@@ -165,11 +193,25 @@
 		if (this.item()) return Number(this.item().meta.srpgAreaRange) || 0;
 		return 0;
 	};
+	Game_Action.prototype.minArea = function() {
+		if (this.item()) return Number(this.item().meta.srpgAreaMinRange) || 0;
+		return 0;
+	};
 	Game_Action.prototype.areaType = function() {
 		var type = '';
 		if (this.item()) type = this.item().meta.srpgAreaType || '';
 		type = type.toLowerCase();
 		return type;
+	};
+	Game_Action.prototype.areaTargetLimit = function() {
+		if (this.item()) return Number(this.item().meta.srpgAreaTargets) || 0;
+		return 0;
+	};
+	Game_Action.prototype.areaOrder = function() {
+		var order = '';
+		if (this.item()) return this.item().meta.srpgAreaOrder || '';
+		order = order.toLowerCase();
+		return order;
 	};
 
 	// (utility) find the direction to a fixed point, discounting obstacles
@@ -252,7 +294,7 @@
 			if (dy < -$gameMap.height() / 2) dy += $gameMap.height();
 		}
 
-		return $gameMap.inArea(dx, dy, this._activeAoE.size, this._activeAoE.shape, this._activeAoE.dir);
+		return $gameMap.inArea(dx, dy, this._activeAoE.size, this._activeAoE.minSize, this._activeAoE.shape, this._activeAoE.dir);
 	};
 
 	// to attack multiple targets, you queue up a target list
@@ -285,28 +327,28 @@
 //====================================================================
 
 	// get a list of battlers near another battler
-	Game_Character.prototype.battlersNear = function(size, shape, dir, type) {
+	Game_Character.prototype.battlersNear = function(size, minSize, shape, dir, type) {
 		var x = this.posX();
 		var y = this.posY();
 		dir = dir || this.direction();
 
 		var battlers = [];
 		$gameMap.events().forEach(function (event) {
-			if (event.isErased() || !event.inArea(x, y, size, shape, dir)) return;
+			if (event.isErased() || !event.inArea(x, y, size, minSize, shape, dir)) return;
 			var unitAry = $gameSystem.EventToUnit(enemyEvent.eventId());
 			if (unitAry && (unitAry[0] === type || type === null)) battlers.push(unitAry[1]);
 		});
 		return battlers;
 	};
-	Game_Character.prototype.enemiesNear = function(size, shape, dir) {
-		return this.battlersNear(size, shape, dir, 'enemy');
+	Game_Character.prototype.enemiesNear = function(size, minSize, shape, dir) {
+		return this.battlersNear(size, minSize, shape, dir, 'enemy');
 	};
-	Game_Character.prototype.actorsNear = function(size, shape, dir) {
-		return this.battlersNear(size, shape, dir, 'actor');
+	Game_Character.prototype.actorsNear = function(size, minSize, shape, dir) {
+		return this.battlersNear(size, minSize, shape, dir, 'actor');
 	};
 
 	// check if a character is within a specified AoE
-	Game_Character.prototype.inArea = function(x, y, size, shape, dir) {
+	Game_Character.prototype.inArea = function(x, y, size, minSize, shape, dir) {
 		if (size <= 0) return false; // one-square AoEs don't count as AoEs
 		var dx = this.posX() - x;
 		var dy = this.posY() - y;
@@ -320,63 +362,89 @@
 			if (dy > $gameMap.height() / 2) dy -= $gameMap.height();
 			if (dy < -$gameMap.height() / 2) dy += $gameMap.height();
 		}
-		return $gameMap.inArea(dx, dy, size, shape, dir);
+		return $gameMap.inArea(dx, dy, size, minSize, shape, dir);
 	};
 
 	// check if a given position is within an area
-	Game_Map.prototype.inArea = function(dx, dy, size, shape, dir) {
+	Game_Map.prototype.inArea = function(dx, dy, size, minSize, shape, dir) {
 		var fx = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1][dir];
 		var fy = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1][dir];
+
+		// apply default shape
+		shape = shape || 'circle';
 
 		switch (shape) {
 			case 'line':
 				if (dx * fy != 0 || dy * fx != 0) return false;
-				if (dx * fx < 0 || dy * fy < 0 || dx * fx > size || dy * fy > size) return false;
+				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
 				return true;
 
 			case 'cone':
-				if (dx * fx < 0 || dy * fy < 0 || dx * fx > size || dy * fy > size) return false;
+				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
 				if (Math.abs(dx*fy) > Math.abs(dy*fy) || Math.abs(dy*fx) > Math.abs(dx*fx)) return false;
 				return true;
 
 			case 'split':
-				if (dx * fx < 0 || dy * fy < 0 || dx * fx > size || dy * fy > size) return false;
+				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
 				if (Math.abs(dx) != Math.abs(dy)) return false;
 				return true;
 
 			case 'arc':
-				if (dx * fx > 0 || dy * fy > 0 || dx * fx < -size || dy * fy < -size) return false;
+				if (dx * fx > -minSize || dy * fy > -minSize || dx * fx < -size || dy * fy < -size) return false;
 				if (Math.abs(dx) != Math.abs(dy)) return false;
 				return true;
 
 			case 'side':
 				if (dx * fx != 0 || dy * fy != 0) return false;
 				if (Math.abs(dx * fy) > size || Math.abs(dy * fx) > size) return false;
+				if (Math.abs(dx * fy) < minSize || Math.abs(dy * fx) < minSize) return false;
 				return true;
 
 			case 'tee':
 				if (dx != 0 && dy != 0) return false;
 				if (dx * fx < 0 || dy * fy < 0 || Math.abs(dx) > size || Math.abs(dy) > size) return false;
+				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false;
 				return true;
 
 			case 'plus':
 				if (dx != 0 && dy != 0) return false;
 				if (Math.abs(dx) > size || Math.abs(dy) > size) return false;
+				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false;
 				return true;
 
 			case 'cross':
-				if (Math.abs(dx) != Math.abs(dy) || Math.abs(dx) > size) return false;
+				if (Math.abs(dx) != Math.abs(dy) || Math.abs(dx) > size || Math.abs(dx) < minSize) return false;
+				return true;
+
+			case 'star':
+				if (Math.abs(dx) != Math.abs(dy) && dx != 0 && dy != 0) return false;
+				if (Math.abs(dx) > size || Math.abs(dy) > size) return false
+				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
+				return true;
+
+			case 'checker':
+				if ((dx + dy) % 2 != 0) return false;
+				if (Math.abs(dx) > size || Math.abs(dy) > size) return false
+				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
 				return true;
 
 			case 'square':
 				if (Math.abs(dx) > size || Math.abs(dy) > size) return false;
+				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
 				return true;
 
 			case 'circle':
-			default: // circle is the default shape
-				if (Math.abs(dx)+Math.abs(dy) > size) return false;
+				if (Math.abs(dx) + Math.abs(dy) > size || Math.abs(dx) + Math.abs(dy) < minSize) return false;
 				return true;
-		};
+
+			default: // support extension from other plugins
+				return this.extraAreas(dx, dy, size, minSize, shape, fx, fy);
+		}
+	};
+
+	// plugins can override this to add more shapes
+	Game_Map.prototype.extraAreas = function(dx, dy, size, minSize, shape, fx, fy) {
+		return false;
 	};
 
 //====================================================================
@@ -440,12 +508,14 @@
 		var skill = actor.currentAction();
 		if (!skill) return;
 		var size = skill.area();
+		var minSize = skill.minArea();
 		var shape = skill.areaType();
 		var dir = unit.dirTo(x, y);
 		this._activeAoE = {
 			x: x, 
 			y: y,
 			size: size,
+			minSize: minSize,
 			shape: shape,
 			dir: dir
 		};
@@ -502,7 +572,9 @@
 				var skill = userArray[1].currentAction();
 				if (skill.area() > 0) {
 					$gameTemp.showArea(mainTarget.posX(), mainTarget.posY());
-					$gameTemp.selectArea(userArray[1], skill, mainTarget);
+					$gameTemp.selectArea(userArray[1], skill);
+					// the original target may not be who we end up hitting
+					$gameTemp.setTargetEvent($gameTemp.areaTargets().shift().event);
 				}
 			}
 		}
@@ -514,6 +586,13 @@
 		this.clearAreaTargets();
 		var friends = (user.isActor()) ? 'actor' : 'enemy';
 		var opponents = (user.isActor()) ? 'enemy' : 'actor';
+
+		// check if the targets are limited
+		var limit = skill.areaTargetLimit();
+		if (initialTarget) {
+			limit -= 1; // deduct the initial target from the count
+			if (limit == 0) return true;
+		};
 
 		// identify targets
 		var targets = $gameMap.events().filter(function (event) {
@@ -528,14 +607,36 @@
 		if (targets.length == 0 && !initialTarget) return false;
 
 		// sort by distance
-		targets = targets.sort(function (a, b) {
-			var aDist = a.distTo($gameTemp.areaX(), $gameTemp.areaY());
-			var bDist = b.distTo($gameTemp.areaX(), $gameTemp.areaY());
-			return aDist - bDist;
-		});
+		var sortFunction;
+		switch (skill.areaOrder()) {
+			case 'random': // random order
+				sortFunction = function (a, b) {
+					return Math.random() - 0.5;
+				};
+				break;
+			case 'far': // outside-in
+				sortFunction = function (a, b) {
+					var aDist = a.distTo($gameTemp.areaX(), $gameTemp.areaY());
+					var bDist = b.distTo($gameTemp.areaX(), $gameTemp.areaY());
+					return bDist - aDist;
+				};
+				break;
+			case 'near': // inside-out (default)
+			default:
+				sortFunction = function (a, b) {
+					var aDist = a.distTo($gameTemp.areaX(), $gameTemp.areaY());
+					var bDist = b.distTo($gameTemp.areaX(), $gameTemp.areaY());
+					return aDist - bDist;
+				};
+				break;
+		}
+		targets = targets.sort(sortFunction);
+
+		// reduce the limit to fit if needed (0 or less means "no limit")
+		if (limit <= 0 || limit > targets.length) limit = targets.length;
 
 		// queue up actions on each target
-		for (var i = 0; i < targets.length; i++) {
+		for (var i = 0; i < limit; i++) {
 			this.addAreaTarget({
 				item: skill.item(),
 				event: targets[i]
@@ -547,10 +648,11 @@
 	// work through the queue of actions
 	var _srpgAfterAction = Scene_Map.prototype.srpgAfterAction;
 	Scene_Map.prototype.srpgAfterAction = function() {
-		if ($gameTemp.areaTargets().length > 0) {
+		var actionArray = $gameSystem.EventToUnit($gameTemp.activeEvent().eventId());
+
+		if (actionArray[1].canMove() && $gameTemp.areaTargets().length > 0) {
 			this.srpgBattlerDeadAfterBattle();
-			var actionArray = $gameSystem.EventToUnit($gameTemp.activeEvent().eventId());
-			nextaction = $gameTemp.areaTargets().shift();
+			var nextaction = $gameTemp.areaTargets().shift();
 			actionArray[1].srpgMakeNewActions();
 			actionArray[1].action(0).setItemObject(nextaction.item);
 			var targetArray = $gameSystem.EventToUnit(nextaction.event.eventId());
@@ -564,10 +666,14 @@
 			this.srpgBattleStart(actionArray, targetArray);
 		} else {
 			$gameTemp.clearArea();
+			$gameTemp.clearAreaTargets();
 			$gameTemp.setShouldPayCost(true);
 			_srpgAfterAction.call(this);
 		}
 	};
+
+	// override this to allow the AI to use fancy AoEs
+	Game_System.prototype.srpgAIUnderstandsAoE = false;
 
 	// AoE skills can be used as long as you're in the targeted area
 	var _canUse = Game_BattlerBase.prototype.canUse;
@@ -579,6 +685,12 @@
 			$gameSystem.isSubBattlePhase() === 'enemy_action' ||
 			$gameSystem.isSubBattlePhase() === 'battle_window') {
 				return $gameTemp.inArea($gameTemp.targetEvent());
+			}
+			// stop default AI from using AoEs with holes
+			if (!$gameSystem.srpgAIUnderstandsAoE &&
+			$gameSystem.isBattlePhase() !== "actor_phase" &&
+			Number(item.meta.srpgAreaMinRange) > 0) {
+				return false;
 			}
 		}
 		return _canUse.call(this, item);
@@ -621,20 +733,20 @@
 		}
 	};
 
-	Sprite_SrpgAoE.prototype.setAoE = function(x, y, size, type, dir) {
+	Sprite_SrpgAoE.prototype.setAoE = function(x, y, size, minSize, type, dir) {
 		this._posX = x;
 		this._posY = y;
 		this.blendMode = Graphics.BLEND_ADD;
 
-		if (this._size != size || this._type != type || this._dir != dir) {
+		if (this._size != size || this._minSize != minSize || this._type != type || this._dir != dir) {
 			this._size = size;
 			this._type = type;
 			this._dir = dir;
-			this.redrawArea(size, type, dir);
+			this.redrawArea(size, minSize, type, dir);
 		}
 	};
 
-	Sprite_SrpgAoE.prototype.redrawArea = function(size, type, dir) {
+	Sprite_SrpgAoE.prototype.redrawArea = function(size, minSize, type, dir) {
 		var tileWidth = $gameMap.tileWidth();
 		var tileHeight = $gameMap.tileHeight();
 		this.bitmap = new Bitmap(tileWidth*(1+size*2), tileHeight*(1+size*2));
@@ -643,7 +755,7 @@
 
 		for (var x = 0; x < 1+size*2; x++) {
 			for (var y = 0; y < 1+size*2; y++) {
-				if ($gameMap.inArea(x-size, y-size, size, type, dir)) {
+				if ($gameMap.inArea(x-size, y-size, size, minSize, type, dir)) {
 					this.drawCell(this.bitmap, x*tileWidth, y*tileHeight, tileWidth, tileHeight);
 				}
 			}
@@ -696,7 +808,7 @@
 	Spriteset_Map.prototype.updateSrpgAoE = function() {
 		var aoe = $gameTemp._activeAoE;
 		if (aoe) {
-			this._srpgAoE.setAoE(aoe.x, aoe.y, aoe.size, aoe.shape, aoe.dir);
+			this._srpgAoE.setAoE(aoe.x, aoe.y, aoe.size, aoe.minSize, aoe.shape, aoe.dir);
 		} else {
 			this._srpgAoE.clearArea();
 		}
