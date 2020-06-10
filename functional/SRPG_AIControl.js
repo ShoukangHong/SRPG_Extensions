@@ -25,7 +25,7 @@
  * below those as well.
  *
  * Allows the AI to utilize anyTarget and AoE skills, and gives you more control
- * over the behaviors of individual units
+ * over the behavior of different enemies and actors
  *
  * The formulas in this plugin are meant for advanced users with some knowledge
  * of javascript.
@@ -42,6 +42,9 @@
  * <aiTarget: formula>  default Target Formula for this unit
  * <aiMove: formula>    default Move Formula for this unit
  *
+ * New event tag:
+ * <aiFlag:type>        give the event a flag that AI can use to navigate
+ *
  * New actor, class, enemy, weapon, armor, skill, and state tag:
  * <aiIgnore>           this unit is completely invisible to AI units
  *
@@ -49,6 +52,10 @@
  * <aimingEvent:X> and <aimingActor:X> tags, and also nearestFriend,
  * nearestOpponent, mostFriends, and mostOpponents values in Move
  * Formulas.
+ *
+ * New script call:
+ * event.setAiFlag('ABC')   changes the event's flag to ACB
+ * event.clearAiFlag()      removes the event's flag
  *
  * ------------------------
  * TARGET FORMULAS
@@ -155,6 +162,15 @@
  * nearestUnitEvent  distance to nearest unitEvent (negative)
  * mostFriends       combined distance to all friends (negative)
  * mostOpponents     combined distance to all opponents (negative)
+ * nearestFlag['type']  distance to nearest flag event of type
+ * mostFlags['type']    combined distance to all flag events of type
+ *
+ * Flags are events with an <aiFlag:type> notetag, and can be actors,
+ * enemies, objects, or any other kind of event, even ones that have no effect
+ * on the battle otherwise. You can use them to give AI units more information
+ * about the map, such as good positions for archers to wait, or dangerous
+ * chokepoints those units should avoid. Since flags are on events, they can be
+ * be moved around the map or erased to represent a changing situation
  *
  * Examples:
  *
@@ -169,10 +185,14 @@
  * <aiMove: a.hpRate() > 0.5 ? nearestOpponent : mostFriends> will approach the
  * enemy while HP is above 50%, but run to safety when wounded
  *
- * <aiMove: region> will move to the space with the highest region. If there
- * isn't a higher region, it will simply stand still.
+ * <aiMove: region> will move to the space with the highest region it can reach.
+ * if there's no higher region nearby, it will stand still.
  *
- * <aiMove: -region> is the same, but moves to the lowest region.
+ * <aiMove: -region> is the same, but favors to the lowest-numbered region.
+ *
+ * <aiMove: nearestFlag['protect']> will move toward the nearest event with the
+ * <aiFlag:protect> notetag on it, even if the event is an opponent or hidden
+ * event that doesn't affect the battle.
  */
 
 (function(){
@@ -457,6 +477,9 @@
 // Target-finding
 //====================================================================
 
+	// new AI knows how to use AoEs, even with holes
+	Game_System.prototype.srpgAIUnderstandsAoE = true;
+
 	// decide what target to go after
 	Scene_Map.prototype.srpgAITarget = function(user, event, action) {
 
@@ -700,8 +723,10 @@
 		var nearestFriend = -_maxDist;
 		var nearestOpponent = -_maxDist;
 		var nearestUnitEvent = -_maxDist;
+		var nearestFlag = {};
 		var mostFriends = 0;
 		var mostOpponents = 0;
+		var mostFlags = {};
 
 		// find nearby units
 		var occupied = $gameMap.events().some(function(otherEvent) {
@@ -737,6 +762,14 @@
 					}
 				} else if (otherEvent.isType() === 'unitEvent') {
 					nearestUnitEvent = Math.max(dist, nearestUnitEvent);
+				}
+
+				// track distance to arbitrary "flag" events
+				var type = otherEvent.aiFlag();
+				if (type) {
+					if (nearestFlag[type] === undefined) nearestFlag[type] = -_maxDist;
+					nearestFlag[type] = Math.max(dist, nearestFlag[type]);
+					mostFlags[type] += dist;
 				}
 			}
 			return false;
@@ -786,6 +819,34 @@
 
 		// default formula
 		return eval(_moveFormula);
+	};
+
+//====================================================================
+// Event flags
+//====================================================================
+
+	// track the event's flag
+	Game_Event.prototype.setAiFlag = function(type) {
+		this._aiFlag = type;
+	};
+	Game_Event.prototype.clearAiFlag = function() {
+		this._aiFlag = null;
+	};
+	Game_Event.prototype.aiFlag = function() {
+		return this._aiFlag;
+	};
+
+	// set up default flags from events
+	var _setAllEventType = Game_System.prototype.setAllEventType;
+	Game_System.prototype.setAllEventType = function() {
+		_setAllEventType.call(this);
+		$gameMap.events().forEach(function(event) {
+			if (event.event().meta.aiFlag) {
+				event.setAiFlag(event.event().meta.aiFlag);
+			} else {
+				event.clearAiFlag();
+			}
+		});
 	};
 
 })();
