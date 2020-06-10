@@ -548,12 +548,13 @@
 				for (var i = 0; i < posList.length; i++) {
 					var pos = posList[i];
 					var r = action.area();
+					var mr = action.minArea();
 					var t = action.areaType();
 					var d = $gameMap.dirBetween(pos.x, pos.y, x, y);
 					var priority = false;
 
 					var score = $gameMap.events().reduce(function(value, target) {
-						if (target && target != event && target.inArea(x, y, r, t, d)) {
+						if (target && target != event && target.inArea(x, y, r, mr, t, d)) {
 							var bonus = target.targetScore(user, action, pos);
 							if (!isNaN(bonus)) {
 								value += bonus;
@@ -566,7 +567,7 @@
 					}, 0);
 
 					// check if the user is in the AoE
-					if ($gameMap.inArea(pos.x - x, pos.y - y, r, t, d)) {
+					if ($gameMap.inArea(pos.x - x, pos.y - y, r, mr, t, d)) {
 						var bonus = event.targetScore(user, action, pos);
 						if (!isNaN(bonus)) {
 							score += bonus;
