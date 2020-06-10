@@ -55,6 +55,15 @@
  * <damageFloor>           the event's space is treated as a damage tile
  * Uses the same settings as normal damage tiles for that map
  * Best used with events that are not already actors, enemies, or objects
+ *
+ * New script call:
+ * a.srpgBattlerDead()
+ * b.srpgBattlerDead()     if the battler is dead, erases their event and updates
+ *                         the number of living units on each team.
+ *
+ * Use this to check for KOs after dealing damage via events or script calls, outside
+ * of normally using attacks or items.
+ * Floor damage and end-of-round poison are already handled.
  */
 
 (function(){
@@ -62,6 +71,10 @@
 	var _formula = parameters['Floor Damage Formula'] || "target.mhp * 0.1";
 	var _element = Number(parameters['Floor Damage Element']) || 0;
 	var _animation = Number(parameters['Floor Damage Animation']) || 0;
+
+	var coreParameters = PluginManager.parameters('SRPG_core');
+	var _existActorVarID = Number(coreParameters['existActorVarID'] || 1);
+	var _existEnemyVarID = Number(coreParameters['existEnemyVarID'] || 2);
 
 //====================================================================
 // utility functions for finding unit events
@@ -87,6 +100,32 @@
 		return $gameMap.event(eventId);
 	};
 
+//====================================================================
+// handle death from non-battle effects
+//====================================================================
+
+	// check if the unit has died
+	Game_Battler.prototype.srpgBattlerDead = function () {
+		if (this.isDead() && this.event() && !this.event().isErased()) {
+			this.event().erase();
+			if (this.isActor()) {
+				var oldValue = $gameVariables.value(_existActorVarID);
+				$gameVariables.setValue(_existActorVarID, oldValue - 1);
+			} else {
+				var oldValue = $gameVariables.value(_existEnemyVarID);
+				$gameVariables.setValue(_existEnemyVarID, oldValue - 1);
+			}
+		}
+	};
+
+	// battlers can die from poison or states expiring
+	var _onTurnEnd = Game_Battler.prototype.onTurnEnd;
+	Game_Battler.prototype.onTurnEnd = function() {
+		_onTurnEnd.call(this);
+		if ($gameSystem.isSRPGMode()) {
+			this.srpgBattlerDead();
+		}
+	};
 
 //====================================================================
 // custom floor damage
@@ -101,7 +140,7 @@
 				if (event.isErased()) return false;
 				if (!event.pos(x, y)) return false;
 				if (!event.characterName() === '') return false;
-				if (!event.event().meta.floorDamage) return false;
+				if (!event.event().meta.damageFloor) return false;
 				return true;
 			});
 		}
@@ -165,6 +204,9 @@
 		if (damage != 0 && dmgAnimation > 0 && this.event()) {
 			this.event().requestAnimation(dmgAnimation);
 		}
+
+		// check if the effect killed
+		this.srpgBattlerDead();
 	};
 
 })();
