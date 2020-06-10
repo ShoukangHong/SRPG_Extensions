@@ -151,12 +151,12 @@
 			var frame = this._frameCount;
 			var max = Math.max(_rangeFrames * _rangeDelay, 1);
 			this.opacity = 255 * Number(eval(_rangeOpacity));
-			if (oldFrame != newFrame) this.redrawArea(this._size, this._type, this._dir);
+			if (oldFrame != newFrame) this.redrawArea(this._size, this._minSize, this._type, this._dir);
 		};
 
 		var _setAoE = Sprite_SrpgAoE.prototype.setAoE;
-		Sprite_SrpgAoE.prototype.setAoE = function(x, y, size, type, dir) {
-			_setAoE.call(this, x, y, size, type, dir);
+		Sprite_SrpgAoE.prototype.setAoE = function(x, y, size, minSize, type, dir) {
+			_setAoE.call(this, x, y, size, minSize, type, dir);
 			this.blendMode = _rangeBlendMode;
 		};
 	}
