@@ -4,7 +4,7 @@
  *
  * @help
  *
- * Place under SRPG_AoE.js
+ * Place beneath SRPG_AoE.js in the plugin order
  * 
  * [Describe your new AoEs here]
  *
@@ -15,44 +15,48 @@
 
 	// space to add new AoE shapes
 	var _extraAreas = Game_Map.prototype.extraAreas;
-	Game_Map.prototype.extraAreas = function(dx, dy, size, minSize, shape, fx, fy) {
-		// dx and dy are the position. 0, 0 is the AoE's origin.
+	Game_Map.prototype.extraAreas = function(shape, x, y, rx, ry, size, minSize) {
+		// x and y are the position. 0, 0 is the AoE's origin.
+		// rx and ry are the position relative to the facing direction.
+			// ry is the distance in front of the origin.
+			// rx is the distance to the left of the origin.
+			// ry and rx can be negative, for behind and to the right, respectively.
 
 		// size is the maximum range. size 0 only covers the origin.
 		// minSize is the minimum range. minSize 1 or greater will exclude the origin.
-			// The area display will only draw a square twice the size + 1.
-			// If your AoE extends outside that square, some of it will be hidden.
-
-		// fx and fy are the direction. 0, 1 is down, -1, 0 is left, etc.
-			// fx * dx and fy * dy tell you distance in the "forward" direction.
-			// fx * dy and fy * dx tell you distance perpendicular to the "forward" direction.
+			// Cells outside of a square range centered on the origin will be ignored.
+			// So, a size of 1 has a 3x3 square maximum, size 2 has a 5x5, and so on.
 
 		switch (shape) {
-			case '[your shape]': // add your own shapes here!
-				return true;
-
 			case 'circle': // EXAMPLE: a shape using circular distance
-				if (Math.abs(dx) + Math.abs(dy) > size || Math.abs(dx) + Math.abs(dy) < minSize) return false;
+				if (Math.abs(x) + Math.abs(y) > size || Math.abs(x) + Math.abs(y) < minSize) return false;
 				return true;
 
 			case 'square': // EXAMPLE: a shape using square distance
-				if (Math.abs(dx) > size || Math.abs(dy) > size) return false;
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
+				if (Math.abs(x) > size || Math.abs(y) > size) return false;
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false
 				return true;
 
-			case 'line': // EXAMPLE: a shape that checks direction forward
-				if (dx * fy != 0 || dy * fx != 0) return false;
-				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
+			case 'line': // EXAMPLE: a shape that checks ry to look forward
+				if (rx != 0) return false;
+				if (ry > size || ry < minSize) return false;
 				return true;
 
-			case 'side': // EXAMPLE: a shape that checks direction to the sides
-				if (dx * fx != 0 || dy * fy != 0) return false;
-				if (Math.abs(dx * fy) > size || Math.abs(dy * fx) > size) return false;
-				if (Math.abs(dx * fy) < minSize || Math.abs(dy * fx) < minSize) return false;
+			case 'side': // EXAMPLE: a shape that checks rx to look side to side
+				if (ry != 0) return false;
+				if (Math.abs(rx) > size || Math.abs(rx) < minSize) return false;
 				return true;
 
-			default: // LEAVE THIS HERE! It allows you to have multiple sets of extra AoEs
-				return _extraAreas.call(this, dx, dy, size, minSize, shape, fx, fy);
+			case 'cone': // EXAMPLE: a shape that uses both ry and rx 
+				if (ry > size || ry < minSize) return false;
+				if (Math.abs(rx) > Math.abs(ry)) return false;
+				return true;
+
+			case '[your shape]': // add your own shapes here!
+				return true;
+
+			default: // LEAVE THIS HERE! It allows you to use multiple extra AoE plugins at once
+				return _extraAreas.call(this, shape, x, y, rx, ry size, minSize);
 		}
 	};
 

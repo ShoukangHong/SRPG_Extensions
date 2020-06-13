@@ -366,84 +366,91 @@
 	};
 
 	// check if a given position is within an area
-	Game_Map.prototype.inArea = function(dx, dy, size, minSize, shape, dir) {
-		var fx = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1][dir];
-		var fy = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1][dir];
+	Game_Map.prototype.inArea = function(x, y, size, minSize, shape, dir) {
+		var _fx = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1][dir];
+		var _fy = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1][dir];
+
+		var ry = x*_fx + y*_fy; // forward
+		var rx = x*_fy - y*_fx; // sideways
 
 		// apply default shape
 		shape = shape || 'circle';
 
+		// outside drawing boundary, doesn't count
+		if (x > size || x < -size || y > size || y < -size) return false;
+
 		switch (shape) {
 			case 'line':
-				if (dx * fy != 0 || dy * fx != 0) return false;
-				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
+				if (rx != 0) return false;
+				if (ry > size || ry < minSize) return false;
 				return true;
 
 			case 'cone':
-				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
-				if (Math.abs(dx*fy) > Math.abs(dy*fy) || Math.abs(dy*fx) > Math.abs(dx*fx)) return false;
+				if (ry > size || ry < minSize) return false;
+				if (Math.abs(rx) > Math.abs(ry)) return false;
 				return true;
 
 			case 'split':
-				if (dx * fx < minSize || dy * fy < minSize || dx * fx > size || dy * fy > size) return false;
-				if (Math.abs(dx) != Math.abs(dy)) return false;
+				if (ry > size || ry < minSize) return false;
+				if (Math.abs(rx) != Math.abs(ry)) return false;
 				return true;
 
 			case 'arc':
-				if (dx * fx > -minSize || dy * fy > -minSize || dx * fx < -size || dy * fy < -size) return false;
-				if (Math.abs(dx) != Math.abs(dy)) return false;
+				if (ry < -size || ry > -minSize) return false;
+				if (Math.abs(rx) != Math.abs(ry)) return false;
 				return true;
 
 			case 'side':
-				if (dx * fx != 0 || dy * fy != 0) return false;
-				if (Math.abs(dx * fy) > size || Math.abs(dy * fx) > size) return false;
-				if (Math.abs(dx * fy) < minSize || Math.abs(dy * fx) < minSize) return false;
+				if (ry != 0) return false;
+				if (Math.abs(rx) > size || Math.abs(rx) < minSize) return false;
 				return true;
 
 			case 'tee':
-				if (dx != 0 && dy != 0) return false;
-				if (dx * fx < 0 || dy * fy < 0 || Math.abs(dx) > size || Math.abs(dy) > size) return false;
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false;
+				if (ry < 0) return false;
+				if (x != 0 && y != 0) return false;
+				if (Math.abs(x) > size || Math.abs(y) > size) return false;
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false;
 				return true;
 
 			case 'plus':
-				if (dx != 0 && dy != 0) return false;
-				if (Math.abs(dx) > size || Math.abs(dy) > size) return false;
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false;
+				if (x != 0 && y != 0) return false;
+				if (Math.abs(x) > size || Math.abs(y) > size) return false;
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false;
 				return true;
 
 			case 'cross':
-				if (Math.abs(dx) != Math.abs(dy) || Math.abs(dx) > size || Math.abs(dx) < minSize) return false;
+				if (Math.abs(x) != Math.abs(y)) return false;
+				if (Math.abs(x) > size || Math.abs(x) < minSize) return false;
 				return true;
 
 			case 'star':
-				if (Math.abs(dx) != Math.abs(dy) && dx != 0 && dy != 0) return false;
-				if (Math.abs(dx) > size || Math.abs(dy) > size) return false
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
+				if (Math.abs(x) != Math.abs(y) && x != 0 && y != 0) return false;
+				if (Math.abs(x) > size || Math.abs(y) > size) return false
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false
 				return true;
 
 			case 'checker':
-				if ((dx + dy) % 2 != 0) return false;
-				if (Math.abs(dx) > size || Math.abs(dy) > size) return false
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
+				if ((x + y) % 2 != 0) return false;
+				if (Math.abs(x) > size || Math.abs(y) > size) return false
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false
 				return true;
 
 			case 'square':
-				if (Math.abs(dx) > size || Math.abs(dy) > size) return false;
-				if (Math.abs(dx) < minSize || Math.abs(dy) < minSize) return false
+				if (Math.abs(x) > size || Math.abs(y) > size) return false;
+				if (Math.abs(x) < minSize && Math.abs(y) < minSize) return false
 				return true;
 
 			case 'circle':
-				if (Math.abs(dx) + Math.abs(dy) > size || Math.abs(dx) + Math.abs(dy) < minSize) return false;
+				if (Math.abs(x) + Math.abs(y) > size || Math.abs(x) + Math.abs(y) < minSize) return false;
 				return true;
 
 			default: // support extension from other plugins
-				return this.extraAreas(dx, dy, size, minSize, shape, fx, fy);
+				return this.extraAreas(shape, x, y, rx, ry size, minSize);
 		}
 	};
 
 	// plugins can override this to add more shapes
-	Game_Map.prototype.extraAreas = function(dx, dy, size, minSize, shape, fx, fy) {
+	Game_Map.prototype.extraAreas = function(shape, x, y, rx, ry, size, minSize) {
 		return false;
 	};
 
