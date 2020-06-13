@@ -229,7 +229,6 @@
 		if (_srpgPredictionWindowMode != 3) $gameSystem.setSrpgStatusWindowNeedRefresh(battlerArray);
 		$gameSystem.setSrpgBattleWindowNeedRefresh(battlerArray, battlerArray);
 		$gameTemp.setSrpgDistance($gameSystem.unitDistance(event, target));
-		$gameTemp.setSrpgSpecialRange(event.srpgRangeExtention(target.posX(), target.posY(), event.posX(), event.posY(), item));
 		$gameTemp.setTargetEvent(event);
 		$gameSystem.setSubBattlePhase('battle_window');
 	};
