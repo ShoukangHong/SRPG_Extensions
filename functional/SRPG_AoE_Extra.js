@@ -56,7 +56,7 @@
 				return true;
 
 			default: // LEAVE THIS HERE! It allows you to use multiple extra AoE plugins at once
-				return _extraAreas.call(this, shape, x, y, rx, ry size, minSize);
+				return _extraAreas.call(this, shape, x, y, rx, ry, size, minSize);
 		}
 	};
 
