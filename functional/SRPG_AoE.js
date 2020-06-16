@@ -445,7 +445,7 @@
 				return true;
 
 			default: // support extension from other plugins
-				return this.extraAreas(shape, x, y, rx, ry size, minSize);
+				return this.extraAreas(shape, x, y, rx, ry, size, minSize);
 		}
 	};
 
@@ -687,17 +687,18 @@
 	Game_BattlerBase.prototype.canUse = function(item) {
 		if (item && $gameSystem.isSRPGMode() && this._srpgActionTiming != 1 &&
 		Number(item.meta.srpgAreaRange) > 0) {
-			if ($gameSystem.isSubBattlePhase() === 'invoke_action' ||
-			$gameSystem.isSubBattlePhase() === 'auto_actor_action' ||
-			$gameSystem.isSubBattlePhase() === 'enemy_action' ||
-			$gameSystem.isSubBattlePhase() === 'battle_window') {
-				return $gameTemp.inArea($gameTemp.targetEvent());
-			}
 			// stop default AI from using AoEs with holes
 			if (!$gameSystem.srpgAIUnderstandsAoE &&
 			$gameSystem.isBattlePhase() !== "actor_phase" &&
 			Number(item.meta.srpgAreaMinRange) > 0) {
 				return false;
+			}
+
+			if ($gameSystem.isSubBattlePhase() === 'invoke_action' ||
+			$gameSystem.isSubBattlePhase() === 'auto_actor_action' ||
+			$gameSystem.isSubBattlePhase() === 'enemy_action' ||
+			$gameSystem.isSubBattlePhase() === 'battle_window') {
+				return $gameTemp.inArea($gameTemp.targetEvent());
 			}
 		}
 		return _canUse.call(this, item);
