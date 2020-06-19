@@ -142,10 +142,6 @@
 		var action = user.action(0);
 		var reaction = null;
 
-		// prepare action timing
-		user.setActionTiming(0);
-		if (user != target) target.setActionTiming(1);
-
 		// check if we're using map battle on this skill
 		if (action && action.item()) {
 			var mapBattleTag = action.item().meta.mapBattle;
@@ -157,9 +153,19 @@
 			return;
 		}
 
+		// prepare action timing
+		user.setActionTiming(0);
+		if (user != target) target.setActionTiming(1);
+
 		// pre-skill setup
 		$gameSystem.clearSrpgStatusWindowNeedRefresh();
 		$gameSystem.clearSrpgBattleWindowNeedRefresh();
+
+		// make free actions work
+		var addActionTimes = Number(action.item().meta.addActionTimes || 0);
+		if (addActionTimes > 0) {
+			user.SRPGActionTimesAdd(addActionTimes);
+		}
 
 		this.preBattleSetDirection();
 		this.eventBeforeBattle();
