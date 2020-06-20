@@ -46,6 +46,10 @@
  * plugins that improve the AI can include the following line to reenable them:
  * Game_System.prototype.srpgAIUnderstandsAoE = true;
  * 
+ * Note: .SRPGActionTimesAdd(X) will only work during the first target of a
+ * skill if it has an AoE. If you want to modify action times manually, use
+ * ._SRPGActionTimes += X instead.
+ * 
  * Skill / item notetags:
  * <srpgAreaRange:x>    creates an AoE of size x
  * <srpgAreaMinRange:x> adjusts the minimum AoE size, creating a hole
@@ -319,6 +323,12 @@
 	Game_BattlerBase.prototype.useItem = function(skill) {
 		if (!$gameSystem.isSRPGMode() || $gameTemp.shouldPayCost()) {
 			_useItem.call(this, skill);
+		}
+	};
+	var _actionTimesAdd = Game_Battler.prototype.SRPGActionTimesAdd;
+	Game_Battler.prototype.SRPGActionTimesAdd = function(num) {
+		if ($gameTemp.shouldPayCost()) {
+			_actionTimesAdd.call(this, num);
 		}
 	};
 
