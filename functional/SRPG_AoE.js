@@ -319,8 +319,8 @@
 	Game_Temp.prototype.shouldPayCost = function() {
 		return this._shouldPaySkillCost;
 	};
-	var _useItem = Game_BattlerBase.prototype.useItem;
-	Game_BattlerBase.prototype.useItem = function(skill) {
+	var _useItem = Game_Battler.prototype.useItem;
+	Game_Battler.prototype.useItem = function(skill) {
 		if (!$gameSystem.isSRPGMode() || $gameTemp.shouldPayCost()) {
 			_useItem.call(this, skill);
 		}
