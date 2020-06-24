@@ -714,6 +714,14 @@
 		return _canUse.call(this, item);
 	};
 
+	var _srpgBattle_isEnabled = Window_SrpgBattle.prototype.isEnabled;
+	Window_SrpgBattle.prototype.isEnabled = function(item) {
+		if (item && Number(item.meta.srpgAreaRange) > 0) {
+			return this._actor && this._actor.canUse(item);
+		}
+		return _srpgBattle_isEnabled.call(this, item);
+	};
+
 //====================================================================
 // Sprite_SrpgAoE
 //====================================================================
