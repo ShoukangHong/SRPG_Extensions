@@ -47,10 +47,8 @@
 	Game_System.prototype.setEventToUnit = function(event_id, type, data) {
 		_setEventToUnit.call(this, event_id, type, data);
 		if (type === 'enemy') {
-			console.log("Enemy warmups initialized");
 			data.onBattleStartCooldowns();
 		} else if (type === 'actor') {
-			console.log("Actor warmups initialized");
 			$gameActors.actor(data).onBattleStartCooldowns();
 		}
 	};
