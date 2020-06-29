@@ -20,6 +20,7 @@
 		_onTurnEnd.call(this);
 		if ($gameSystem.isSRPGMode()) {
 			this.updateCooldowns();
+			this.updateWarmups();
 		}
 	};
 
@@ -38,6 +39,27 @@
 			Yanfly.SCD.Game_Troop_increaseTurn.call(this);
 		} else {
 			_increaseTurn.call(this);
+		}
+	};
+
+	// When adding new actors or enemies, initalize their warmups
+	var _setEventToUnit = Game_System.prototype.setEventToUnit;
+	Game_System.prototype.setEventToUnit = function(event_id, type, data) {
+		_setEventToUnit.call(this, event_id, type, data);
+		if (type === 'enemy') {
+			console.log("Enemy warmups initialized");
+			data.onBattleStartCooldowns();
+		} else if (type === 'actor') {
+			console.log("Actor warmups initialized");
+			$gameActors.actor(data).onBattleStartCooldowns();
+		}
+	};
+
+	// don't futz around with resetting cooldowns / warmups on battle start
+	var _Unit_onBattleStartCooldowns = Game_Unit.prototype.onBattleStartCooldowns;
+	Game_Unit.prototype.onBattleStartCooldowns = function() {
+		if (!$gameSystem.isSRPGMode()) {
+			_Unit_onBattleStartCooldowns.call(this);
 		}
 	};
 
