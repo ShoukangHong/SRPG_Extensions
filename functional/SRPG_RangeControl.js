@@ -104,9 +104,77 @@
  * @min 0
  * @default 0
  *
+ *
+ * @param Terrain Cost
+ *
+ * @param Terrain 0 Cost
+ * @desc Movement cost of terrain tag 0
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 1 Cost
+ * @desc Movement cost of terrain tag 1
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 2 Cost
+ * @desc Movement cost of terrain tag 2
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 3 Cost
+ * @desc Movement cost of terrain tag 3
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 4 Cost
+ * @desc Movement cost of terrain tag 4
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 5 Cost
+ * @desc Movement cost of terrain tag 5
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 6 Cost
+ * @desc Movement cost of terrain tag 6
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ * @param Terrain 7 Cost
+ * @desc Movement cost of terrain tag 7
+ * @parent Terrain Cost
+ * @type number
+ * @min 1.00
+ * @decimals 2
+ * @default 1.00
+ *
+ *
  * @help
- * Adds line of sight, modifiable ranges, passability options, and zone of control
- * for SRPG combat
+ * Adds line of sight, modifiable ranges, passability options, zone of control,
+ * and terrain-based movement costs for SRPG combat
  *
  * If an enemy unit's ZoC is higher than your Through ZoC, you are forced to stop
  * when you try to move past them. ZoC and Through ZoC cannot go below 0.
@@ -143,6 +211,12 @@
  * <throughEvent:true/false>     # if true, playerEvents do not block line of sight
  * <throughTerrain:X>            # terrain IDs above X block line of sight
  *                               -1 checks the user's srpgThroughTag instead
+ *
+ * New tilset / map notetags:
+ * <srpgTerrainXCost:Y>          # sets the movement cost of terrain X to Y
+ *                               X can be any number between 0 and 7
+ *                               Y can be any decimal number > 1
+ *
  */
 
 (function(){
@@ -159,6 +233,10 @@
 	var _eventBlockUnits = !!eval(parameters['Block Units']);
 	var _baseZoc = Number(parameters['Base ZoC'] || 0);
 	var _baseThroughZoc = Number(parameters['Base Through ZoC'] || 0);
+	var _terrainCost = [];
+	for (var i = 0; i < 8; i++) {
+		_terrainCost[i] = Number(parameters['Terrain '+i+' Cost'] || 1.0);
+	}
 
 	var coreParameters = PluginManager.parameters('SRPG_core');
 	var _defaultMove = Number(coreParameters['defaultMove'] || 4);
@@ -270,23 +348,46 @@
 		$gameTemp.pushMoveList([x, y, false]);
 		$gameMap.makeSrpgZoCTable(this.isType() == 'actor' ? 'enemy' : 'actor', this.throughZoC());
 
-		for (var i = 0; i < edges.length; i++) {
-			var cell = edges[i];
-			var dmove = cell[2] - 1;
+		while (edges.length > 0) {
+			var cell = edges.shift();
 			for (var d = 2; d < 10; d += 2) {
 				if (!this.srpgMoveCanPass(cell[0], cell[1], d, tag)) continue;
 
 				var dx = $gameMap.roundXWithDirection(cell[0], d);
 				var dy = $gameMap.roundYWithDirection(cell[1], d);
 				if ($gameTemp.MoveTable(dx, dy)[0] >= 0) continue;
+				var dmove = Math.max(cell[2] - $gameMap.srpgMoveCost(dx, dy), 0);
 
 				var route = cell[3].concat(d);
 				$gameTemp.setMoveTable(dx, dy, dmove, route);
 				$gameTemp.pushMoveList([dx, dy, false]);
-				if (dmove > 0 && !$gameMap._zocTable[dx+','+dy]) edges.push([dx, dy, dmove, route]);
+				if (dmove > 0 && !$gameMap._zocTable[dx+','+dy]) {
+					edges.push([dx, dy, dmove, route]);
+					edges.sort(function (a, b) {
+						return b[2] - a[2];
+					});
+				}
 			}
 		}
 	}
+
+	// get the cost of moving through a given space
+	Game_Map.prototype.srpgMoveCost = function(x, y) {
+		var terrain = this.terrainTag(x, y);
+
+		// map tags
+		if ($dataMap.meta["srpgTerrain"+terrain+"Cost"]) {
+			return Number($dataMap.meta["srpgTerrain"+terrain+"Cost"] || 1);
+		}
+
+		// tileset tags
+		if (this.tileset().meta["srpgTerrain"+terrain+"Cost"]) {
+			return Number(this.tileset().meta["srpgTerrain"+terrain+"Cost"] || 1);
+		}
+
+		// plugin parameters
+		return _terrainCost[terrain];
+	};
 
 	// breadth-first search for range
 	Game_CharacterBase.prototype.makeRangeTable = function(x, y, range, unused, oriX, oriY, skill) {
