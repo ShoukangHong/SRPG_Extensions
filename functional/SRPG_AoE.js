@@ -518,7 +518,7 @@
 	};
 
 	// highlight the area of effect for an AoE
-	Game_Temp.prototype.showArea = function(x, y) {
+	Game_Temp.prototype.showArea = function(x, y, dir) {
 		var unit = $gameTemp.activeEvent();
 		var actor = $gameSystem.EventToUnit(unit.eventId())[1];
 		if (!actor) return;
@@ -527,7 +527,7 @@
 		var size = skill.area();
 		var minSize = skill.minArea();
 		var shape = skill.areaType();
-		var dir = unit.dirTo(x, y);
+		var dir = dir || unit.dirTo(x, y);
 		this._activeAoE = {
 			x: x, 
 			y: y,
@@ -599,21 +599,17 @@
 	};
 
 	// Find all the targets within the current AoE
-	Game_Temp.prototype.selectArea = function(user, skill, initialTarget) {
+	Game_Temp.prototype.selectArea = function(user, skill) {
 		this.clearAreaTargets();
 		var friends = (user.isActor()) ? 'actor' : 'enemy';
 		var opponents = (user.isActor()) ? 'enemy' : 'actor';
 
 		// check if the targets are limited
 		var limit = skill.areaTargetLimit();
-		if (initialTarget) {
-			limit -= 1; // deduct the initial target from the count
-			if (limit == 0) return true;
-		};
 
 		// identify targets
 		var targets = $gameMap.events().filter(function (event) {
-			if (event.isErased() || event == initialTarget) return false;
+			if (event.isErased()) return false;
 			if ((event.isType() == friends && skill.isForFriend()) || 
 			(event.isType() == opponents && skill.isForOpponent())) {
 				return $gameTemp.inArea(event);
@@ -621,7 +617,7 @@
 		});
 
 		// there are no targets!
-		if (targets.length == 0 && !initialTarget) return false;
+		if (targets.length == 0) return false;
 
 		// sort by distance
 		var sortFunction;

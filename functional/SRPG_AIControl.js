@@ -467,7 +467,8 @@
 	// we've already confirmed there are no valid targets for this skill
 	var _canUse = Game_BattlerBase.prototype.canUse;
 	Game_BattlerBase.prototype.canUse = function(item) {
-		if ($gameSystem.isSRPGMode() && DataManager.isSkill(item) && $gameTemp.noTarget(item.id)) {
+		if ($gameSystem.isSRPGMode() && $gameSystem.isBattlePhase() !== "actor_phase" &&
+		DataManager.isSkill(item) && $gameTemp.noTarget(item.id)) {
 			return false;
 		}
 		return _canUse.call(this, item);
@@ -578,7 +579,7 @@
 					if ((priority && !bestPriority) || (score > bestScore && priority == bestPriority)) {
 						bestScore = score;
 						bestPriority = priority;
-						bestTargetPos = {x: targetPos[0], y: targetPos[1]};
+						bestTargetPos = {x: targetPos[0], y: targetPos[1], dir: d};
 						bestPos = pos;
 					}
 				}
@@ -587,7 +588,7 @@
 
 		// set up AoE targets
 		if (bestTargetPos) {
-			$gameTemp.showArea(bestTargetPos.x, bestTargetPos.y);
+			$gameTemp.showArea(bestTargetPos.x, bestTargetPos.y, bestTargetPos.dir);
 			$gameTemp.setAITargetPos(bestTargetPos);
 			$gameTemp.selectArea(user, action);
 			bestTarget = $gameTemp.areaTargets().shift().event;
