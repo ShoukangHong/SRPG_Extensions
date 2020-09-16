@@ -67,7 +67,7 @@
 				return true;
 			}
 			return false;
-		};
+		});
 		return team.trim().toLowerCase();;
 	};
 
