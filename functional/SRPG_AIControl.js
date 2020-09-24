@@ -591,7 +591,7 @@
 			$gameTemp.showArea(bestTargetPos.x, bestTargetPos.y, bestTargetPos.dir);
 			$gameTemp.setAITargetPos(bestTargetPos);
 			$gameTemp.selectArea(user, action);
-			if (!$gameTemp.areaTargets().isEmpty()) {
+			if ($gameTemp.areaTargets().length > 0) {
 				bestTarget = $gameTemp.areaTargets().shift().event;
 			}
 			$gameTemp.clearArea();
