@@ -475,7 +475,7 @@
 			if ($gameSystem.isSubBattlePhase() === 'actor_target' && $gameSystem.positionInRange(x, y)) {
 				$gameTemp.showArea(x, y);
 			} else if ($gameSystem.isSubBattlePhase() !== 'invoke_action' &&
-			$gameSystem.isSubBattlePhase() !== 'battle_window') {
+			$gameSystem.isSubBattlePhase() !== 'battle_window' && $gameSystem.isBattlePhase() == 'actor_phase') {
 				$gameTemp.clearArea();
 			}
 		}
