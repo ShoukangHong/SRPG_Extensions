@@ -594,7 +594,7 @@
 			if ($gameTemp.areaTargets().length > 0) {
 				bestTarget = $gameTemp.areaTargets().shift().event;
 			}
-			$gameTemp.clearArea();
+			// shoukang delete $gameTemp.clearArea();
 		}
 		// set the optimal target and position
 		$gameTemp.setTargetEvent(bestTarget);
